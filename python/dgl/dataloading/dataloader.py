@@ -12,6 +12,7 @@ from ..batch import batch
 from ..convert import heterograph
 from ..heterograph import DGLHeteroGraph as DGLGraph
 from ..distributed.dist_graph import DistGraph
+import os
 
 # pylint: disable=unused-argument
 def assign_block_eids(block, frontier):
@@ -77,9 +78,6 @@ def _find_exclude_eids(g, exclude_mode, eids, **kwargs):
         None (default)
             Does not exclude any edge.
 
-        'self'
-            Exclude the given edges themselves but nothing else.
-
         'reverse_id'
             Exclude all edges specified in ``eids``, as well as their reverse edges
             of the same edge type.
@@ -108,8 +106,6 @@ def _find_exclude_eids(g, exclude_mode, eids, **kwargs):
     """
     if exclude_mode is None:
         return None
-    elif exclude_mode == 'self':
-        return eids
     elif exclude_mode == 'reverse_id':
         return _find_exclude_eids_with_reverse_id(g, eids, kwargs['reverse_eid_map'])
     elif exclude_mode == 'reverse_types':
@@ -361,8 +357,7 @@ class Collator(ABC):
 def _prepare_tensor_dict(g, data, name, is_distributed):
     if is_distributed:
         x = F.tensor(next(iter(data.values())))
-        return {k: F.copy_to(F.astype(F.tensor(v), F.dtype(x)), F.context(x)) \
-                for k, v in data.items()}
+        return {k: F.copy_to(F.astype(v, F.dtype(x)), F.context(x)) for k, v in data.items()}
     else:
         return utils.prepare_tensor_dict(g, data, name)
 
@@ -452,7 +447,7 @@ class NodeCollator(Collator):
             items = _prepare_tensor_dict(self.g, items, 'items', self._is_distributed)
         else:
             items = _prepare_tensor(self.g, items, 'items', self._is_distributed)
-
+        #print("------------- pid: {}, items: {}".format(os.getpid(), items[:5]))
         blocks = self.block_sampler.sample_blocks(self.g, items)
         output_nodes = blocks[-1].dstdata[NID]
         input_nodes = blocks[0].srcdata[NID]
@@ -498,8 +493,6 @@ class EdgeCollator(Collator):
         minibatch.  Possible values are
 
         * None, which excludes nothing.
-
-        * ``'self'``, which excludes the sampled edges themselves but nothing else.
 
         * ``'reverse_id'``, which excludes the reverse edges of the sampled edges.  The said
           reverse edges have the same edge type as the sampled edges.  Only works

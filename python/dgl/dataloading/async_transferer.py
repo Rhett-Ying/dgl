@@ -4,6 +4,7 @@ from .. import backend as F
 from .. import ndarray
 from .. import utils
 from .._ffi.function import _init_api
+import nvtx
 
 class Transfer(object):
     """ Class for representing an asynchronous transfer. """
@@ -67,6 +68,7 @@ class AsyncTransferer(object):
             ctx = utils.to_dgl_context(device)
         self._handle = _CAPI_DGLAsyncTransfererCreate(ctx)
 
+    @nvtx.annotate("async_copy")
     def async_copy(self, tensor, device):
         """ Initiate an asynchronous copy on the internal stream. For this call
         to be asynchronous, the context the AsyncTranserer is created with must

@@ -13,11 +13,13 @@ from ...ndarray import NDArray as DGLNDArray
 from ... import backend as F
 from ...base import DGLError
 from ...utils import to_dgl_context
+import os
+from ..async_transferer import AsyncTransferer
+import threading, queue
+import time, statistics
+import nvtx
 
-__all__ = ['NodeDataLoader', 'EdgeDataLoader', 'GraphDataLoader',
-           # Temporary exposure.
-           '_pop_subgraph_storage', '_pop_blocks_storage',
-           '_restore_subgraph_storage', '_restore_blocks_storage']
+__all__ = ['NodeDataLoader', 'EdgeDataLoader', 'GraphDataLoader']
 
 PYTORCH_VER = LooseVersion(th.__version__)
 PYTORCH_16 = PYTORCH_VER >= LooseVersion("1.6.0")
@@ -321,9 +323,98 @@ class _NodeDataLoaderIter:
         # input_nodes, output_nodes, blocks
         result_ = next(self.iter_)
         _restore_blocks_storage(result_[-1], self.node_dataloader.collator.g)
-
+        #print("---------------- Main pid: {}".format(os.getpid()))
         result = [_to_device(data, self.device) for data in result_]
         return result
+
+class AsyncNodeDataLoaderIter(_NodeDataLoaderIter):
+    def __init__(self, node_dataloader):
+        super().__init__(node_dataloader)
+        tensors = node_dataloader.async_tensors
+        assert len(tensors) == 2
+        self.src_input = tensors[0]
+        self.dst_input = tensors[-1]
+        self.queue = []
+        self.bundle_size = 5
+        self.tf = AsyncTransferer('cuda')
+        self.tt = []
+        self.t_iter = []
+        self.t_wait = []
+
+    def __iter__(self):
+        return self
+
+    @nvtx.annotate("dl_tf_wait")
+    def wait(self, data):
+        return data.wait()
+
+    @nvtx.annotate("dl_next", color="green")
+    def __next__(self):
+        t0 = time.perf_counter()
+        if len(self.queue)==0:
+            self.fetch()
+            #self.fetch_sync()
+        if len(self.queue)==0:
+            raise StopIteration
+        item = self.queue.pop()
+        t1 = time.perf_counter()
+        res = item[0], item[1], item[2], self.wait(item[3]), self.wait(item[4])
+        self.t_wait.append(time.perf_counter() - t1)
+        self.t_iter.append(time.perf_counter() - t0)
+        return res
+        #return item[0], item[1], item[2], item[3], item[4]
+
+    @nvtx.annotate("dl_slice", color="yellow")
+    def slice(self, in_tensor, idx):
+        shape = list(in_tensor.shape)
+        shape[0]=len(idx)
+        out_tensor = th.empty(*shape, dtype=in_tensor.dtype, pin_memory=True)
+        th.index_select(in_tensor, 0,idx, out=out_tensor)
+        return out_tensor
+
+    @nvtx.annotate("dl_fetch", color="red")
+    def fetch(self):
+        try:
+            for _ in range(self.bundle_size):
+                input_nodes, output_nodes, blocks = next(self.iter_)
+                t0 = time.perf_counter()
+                src = self.slice(self.src_input, blocks[0].srcdata['_ID'])
+                src = self.tf.async_copy(src, 'cuda')
+                dst = self.slice(self.dst_input, blocks[-1].dstdata['_ID'])
+                dst = self.tf.async_copy(dst, 'cuda')
+                res = input_nodes, output_nodes, blocks, src, dst
+                self.queue.append(res)
+                self.tt.append(time.perf_counter() - t0)
+        except StopIteration:
+            pass
+    def fetch_sync(self):
+        try:
+            for _ in range(self.bundle_size):
+                input_nodes, output_nodes, blocks = next(self.iter_)
+                t0 = time.perf_counter()
+                src = self.src_input.index_select(0,blocks[0].srcdata['_ID']).to('cuda')
+                dst = self.dst_input.index_select(0, blocks[-1].dstdata['_ID']).to('cuda')
+                #dst.pin_memory()
+                res = input_nodes, output_nodes, blocks, src, dst
+                self.queue.append(res)
+                self.tt.append(time.perf_counter() - t0)
+        except StopIteration:
+            pass     
+    
+    def __del__(self):
+        #sync: median: 0.13377735647372901, total: 6.901247752131894
+        #async: ~~~~~~~~ median: 0.12357587844599038, total: 6.4007141762413085
+        #async: pre-pin ~~~~~~~~ median: 0.022016332484781742, total: 1.1470854252111167  Epoch: 5.3
+        if len(self.tt) > 0:
+            print("~~~~~~~~ async_copy ~~~median: {}, total: {}, len: {}".format(
+                statistics.median(self.tt), sum(self.tt), len(self.tt)))
+        if len(self.t_wait) > 0:
+            print("~~~~~~~~ tensor wait ~~~median: {}, mean: {}, total: {}, len: {}".format(
+                statistics.median(self.t_wait), sum(self.t_wait)/len(self.t_wait), sum(self.t_wait), len(self.t_wait)))
+        if len(self.t_iter) > 0:
+            print("~~~~~~~~ total iter ~~~mean: {}, total: {}".format(
+                sum(self.t_iter)/len(self.t_wait), sum(self.t_iter)))
+    
 
 class _EdgeDataLoaderIter:
     def __init__(self, edge_dataloader):
@@ -479,7 +570,8 @@ class NodeDataLoader:
     """
     collator_arglist = inspect.getfullargspec(NodeCollator).args
 
-    def __init__(self, g, nids, block_sampler, device=None, use_ddp=False, ddp_seed=0, **kwargs):
+    def __init__(self, g, nids, block_sampler, device=None, use_ddp=False, ddp_seed=0,
+                    async_tensors = None, **kwargs):
         collator_kwargs = {}
         dataloader_kwargs = {}
         for k, v in kwargs.items():
@@ -524,12 +616,15 @@ class NodeDataLoader:
             if num_workers > 0:
                 g.create_formats_()
         self.device = device
+        self.async_tensors = async_tensors
 
     def __iter__(self):
         """Return the iterator of the data loader."""
         if self.is_distributed:
             # Directly use the iterator of DistDataLoader, which doesn't copy features anyway.
             return iter(self.dataloader)
+        elif self.async_tensors is not None:
+            return AsyncNodeDataLoaderIter(self)
         else:
             return _NodeDataLoaderIter(self)
 
@@ -607,7 +702,6 @@ class EdgeDataLoader:
         minibatch.  Possible values are
 
         * None,
-        * ``self``,
         * ``reverse_id``,
         * ``reverse_types``
 

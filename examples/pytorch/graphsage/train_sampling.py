@@ -8,6 +8,7 @@ import dgl.nn.pytorch as dglnn
 import time
 import argparse
 import tqdm
+import statistics
 
 from model import SAGE
 from load_graph import load_reddit, inductive_split, load_ogb
@@ -42,7 +43,34 @@ def load_subtensor(nfeat, labels, seeds, input_nodes, device):
     batch_labels = labels[seeds].to(device)
     return batch_inputs, batch_labels
 
+
+class AsyncNodeDataLoader:
+    def __init__(self, feat, label):
+        self.feat = feat
+        self.label = label
+        self.tf = dgl.dataloading.AsyncTransferer('cuda')
+    def _select(in_tensor, idx):
+        shape = list(in_tensor.shape)
+        shape[0]=len(idx)
+        out_tensor = th.empty(*shape, dtype=in_tensor.dtype, pin_memory=True)
+        th.index_select(in_tensor, 0,idx, out=out_tensor)
+        return out_tensor
+    def load(self, blocks):
+        res = []
+        feat = self._select(self.feat, blocks[0].srcdata[dgl.NID])
+        res.append(self.tf.async_copy(feat, 'cuda'))
+        label = self._select(self.label, blocks[-1].dstdata[dgl.NID])
+        res.append(self.tf.async_copy(label, 'cuda'))
+        return res
+    def post_process(self, data):
+        res = [elem.wait() for elem in data]
+        return res
+
+import nvtx
+
+
 #### Entry point
+@nvtx.annotate("run", color="blue")
 def run(args, device, data):
     # Unpack data
     n_classes, train_g, val_g, test_g, train_nfeat, train_labels, \
@@ -54,15 +82,24 @@ def run(args, device, data):
 
     dataloader_device = th.device('cpu')
     if args.sample_gpu:
-        train_nid = train_nid.to(device)
+        #train_nid = train_nid.to(device)
         # copy only the csc to the GPU
         train_g = train_g.formats(['csc'])
-        train_g = train_g.to(device)
+        #train_g = train_g.to(device)
         dataloader_device = device
 
     # Create PyTorch DataLoader for constructing blocks
     sampler = dgl.dataloading.MultiLayerNeighborSampler(
         [int(fanout) for fanout in args.fan_out.split(',')])
+    
+    """
+    collator = dgl.dataloading.NodeCollator(train_g, train_nid, sampler)
+    dataloader = th.utils.data.DataLoader(collator.dataset, collate_fn=collator.collate,
+                                             batch_size=args.batch_size,
+                                             shuffle=True,
+                                             drop_last=False,
+                                             num_workers=args.num_workers)
+    """
     dataloader = dgl.dataloading.NodeDataLoader(
         train_g,
         train_nid,
@@ -71,7 +108,9 @@ def run(args, device, data):
         batch_size=args.batch_size,
         shuffle=True,
         drop_last=False,
-        num_workers=args.num_workers)
+        num_workers=args.num_workers,
+        async_tensors = [train_nfeat, train_labels] if not args.prefetch_feat else None)
+        #async_tensors = [train_nfeat, train_labels])
 
     # Define model and optimizer
     model = SAGE(in_feats, args.num_hidden, n_classes, args.num_layers, F.relu, args.dropout)
@@ -82,17 +121,42 @@ def run(args, device, data):
     # Training loop
     avg = 0
     iter_tput = []
+    rtt = []
     for epoch in range(args.num_epochs):
+
+        """
+        rtt_0 = time.perf_counter()
+        for _,_,_ in dataloader:
+            pass
+        rtt.append(time.perf_counter() - rtt_0)
+        print("~~~~~~~~~~ pure iter of dataloader: {}".format(time.perf_counter() - rtt_0))
+        """
+
+
         tic = time.time()
 
         # Loop over the dataloader to sample the computation dependency graph as a list of
         # blocks.
         tic_step = time.time()
-        for step, (input_nodes, seeds, blocks) in enumerate(dataloader):
-            # Load the input features as well as output labels
-            batch_inputs, batch_labels = load_subtensor(train_nfeat, train_labels,
-                                                        seeds, input_nodes, device)
+        t01 = [0.0]
+        #for step, (input_nodes, seeds, blocks) in enumerate(dataloader):
+        for step, (input_nodes, seeds, blocks, afeat, alabel) in enumerate(dataloader):
             blocks = [block.int().to(device) for block in blocks]
+
+            if args.prefetch_feat:
+                # Load the input features as well as output labels
+                t0 = time.perf_counter()
+                batch_inputs, batch_labels = load_subtensor(train_nfeat, train_labels,
+                                                            seeds, input_nodes, device)
+                t1 = time.perf_counter()
+                t01.append(t1-t0)
+            else:
+                batch_inputs = afeat
+                batch_labels = alabel
+                #batch_inputs = blocks[0].srcdata['feat']
+                #batch_labels = blocks[-1].dstdata['label']
+
+            
 
             # Compute loss and prediction
             batch_pred = model(blocks, batch_inputs)
@@ -109,6 +173,9 @@ def run(args, device, data):
                     epoch, step, loss.item(), acc.item(), np.mean(iter_tput[3:]), gpu_mem_alloc))
             tic_step = time.time()
 
+        print("---------- median seconds of load_subtensor: {}, total: {}, len:{}".format(statistics.median(t01),
+                    sum(t01), len(t01)))
+
         toc = time.time()
         print('Epoch Time(s): {:.4f}'.format(toc - tic))
         if epoch >= 5:
@@ -119,6 +186,7 @@ def run(args, device, data):
             test_acc = evaluate(model, test_g, test_nfeat, test_labels, test_nid, device)
             print('Test Acc: {:.4f}'.format(test_acc))
 
+    #print("~~~~~~~ pure iter of dataloader, median:{}, total:{}".format(statistics.median(rtt), sum(rtt)))
     print('Avg epoch time: {}'.format(avg / (epoch - 4)))
 
 if __name__ == '__main__':
@@ -139,6 +207,8 @@ if __name__ == '__main__':
                            help="Number of sampling processes. Use 0 for no extra process.")
     argparser.add_argument('--sample-gpu', action='store_true',
                            help="Perform the sampling process on the GPU. Must have 0 workers.")
+    argparser.add_argument('--prefetch-feat', action='store_true',
+                           help="fetch feat from separate tensor.")
     argparser.add_argument('--inductive', action='store_true',
                            help="Inductive learning setting")
     argparser.add_argument('--data-cpu', action='store_true',
@@ -171,6 +241,8 @@ if __name__ == '__main__':
     else:
         train_g = val_g = test_g = g
         train_nfeat = val_nfeat = test_nfeat = g.ndata.pop('features')
+        g.ndata.pop('feat')
+        g.ndata.pop('label')
         train_labels = val_labels = test_labels = g.ndata.pop('labels')
 
     if not args.data_cpu:

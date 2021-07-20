@@ -1,0 +1,2 @@
+#!/bin/bash
+DGL_HOME=~/dgl2 DGL_LIBRARY_PATH=$DGL_HOME/build PYTHONPATH=$DGL_HOME/python:$PYTHONPATH DGL_BACKEND=pytorch PATH=~/nsight-systems-2021.2.1/bin:$PATH nsys profile --cudabacktrace all --cuda-memory-usage true --gpu-metrics-device=0 --gpuctxsw true -t nvtx,osrt,cuda python3 train_sampling.py --gpu 0 --num-workers 4 --sample-gpu --data-cpu --batch-size 3000 --num-epochs 1 --eval-every 100 --log-every 100
