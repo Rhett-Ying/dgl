@@ -140,9 +140,12 @@ def run(args, device, data):
         tic_step = time.time()
         t01 = [0.0]
         #for step, (input_nodes, seeds, blocks) in enumerate(dataloader):
+        h_for = nvtx.start_range(message="epoch")
         for step, (input_nodes, seeds, blocks, afeat, alabel) in enumerate(dataloader):
-            blocks = [block.int().to(device) for block in blocks]
+            with nvtx.annotate("blocks_to"):
+                blocks = [block.int().to(device) for block in blocks]
 
+            h_begin = nvtx.start_range(message="others")
             if args.prefetch_feat:
                 # Load the input features as well as output labels
                 t0 = time.perf_counter()
@@ -172,6 +175,8 @@ def run(args, device, data):
                 print('Epoch {:05d} | Step {:05d} | Loss {:.4f} | Train Acc {:.4f} | Speed (samples/sec) {:.4f} | GPU {:.1f} MB'.format(
                     epoch, step, loss.item(), acc.item(), np.mean(iter_tput[3:]), gpu_mem_alloc))
             tic_step = time.time()
+            nvtx.end_range(h_begin)
+        nvtx.end_range(h_for)
 
         print("---------- median seconds of load_subtensor: {}, total: {}, len:{}".format(statistics.median(t01),
                     sum(t01), len(t01)))
@@ -241,8 +246,10 @@ if __name__ == '__main__':
     else:
         train_g = val_g = test_g = g
         train_nfeat = val_nfeat = test_nfeat = g.ndata.pop('features')
-        g.ndata.pop('feat')
-        g.ndata.pop('label')
+        if 'feat' in g.ndata:
+            g.ndata.pop('feat')
+        if 'label' in g.ndata:
+            g.ndata.pop('label')
         train_labels = val_labels = test_labels = g.ndata.pop('labels')
 
     if not args.data_cpu:
