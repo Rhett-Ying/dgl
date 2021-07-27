@@ -337,9 +337,13 @@ class AsyncNodeDataLoaderIter(_NodeDataLoaderIter):
         self.queue = []
         self.bundle_size = 5
         self.tf = AsyncTransferer('cuda')
+        self.tf_idx = AsyncTransferer('cuda')
         self.tt = []
         self.t_iter = []
         self.t_wait = []
+        self.is_uvm = False
+        self.is_sync = False
+        self.is_block_wait = False
 
     def __iter__(self):
         return self
@@ -352,22 +356,31 @@ class AsyncNodeDataLoaderIter(_NodeDataLoaderIter):
     def __next__(self):
         t0 = time.perf_counter()
         if len(self.queue)==0:
-            self.fetch()
+            self.fetch_uvm()
+            #self.fetch_async()
+            #self.fetch_async2()
             #self.fetch_sync()
         if len(self.queue)==0:
             raise StopIteration
         item = self.queue.pop(0)
 
-        #print("============ wait info, id: {}, handle: {}".format(item[3]._transfer_id, item[3]._handle))
-
-        #return item[0], item[1], item[2], item[3], item[4]
+        if self.is_uvm or self.is_sync:
+            return item[0], item[1], item[2], item[3], item[4]
 
         t1 = time.perf_counter()
+
+        if self.is_block_wait:
+            blocks = [block.wait() for block in item[2]]
+            item[2] = blocks
+
         res = item[0], item[1], item[2], self.wait(item[3]), self.wait(item[4])
         self.t_wait.append(time.perf_counter() - t1)
         self.t_iter.append(time.perf_counter() - t0)
         return res
         
+    @nvtx.annotate("dl_idx_to")
+    def idx_to(self, idx):
+        return self.tf_idx.async_copy(idx, 'cuda').wait()
 
     @nvtx.annotate("dl_slice", color="yellow")
     def slice(self, in_tensor, idx):
@@ -376,45 +389,114 @@ class AsyncNodeDataLoaderIter(_NodeDataLoaderIter):
         out_tensor = th.empty(*shape, dtype=in_tensor.dtype, pin_memory=True)
         th.index_select(in_tensor, 0,idx, out=out_tensor)
         return out_tensor
+    
+    @nvtx.annotate("dl_select_uvm")
+    def select_uvm(self, in_tensor, idx):
+        return in_tensor[idx]
 
-    @nvtx.annotate("dl_block_to")
-    def block_to(self, blocks):
+    @nvtx.annotate("dl_slice_uvm", color="yellow")
+    def slice_uvm(self, in_tensor, idx):   
+        #idx = self.idx_to(idx)
+        idx = self.idx_to_sync(idx, 'cuda')
+        return self.select_uvm(in_tensor, idx)
+
+    @nvtx.annotate("dl_block_sync")
+    def block_sync(self, blocks):
         blocks = [block.int().to('cuda') for block in blocks]
         return blocks
 
-    @nvtx.annotate("dl_fetch", color="red")
-    def fetch(self):
+    @nvtx.annotate("dl_block_async_tf")
+    def block_async_tf(self, blocks):
+        #'DGLBlock' object has no attribute 'contiguous'
+        self.is_block_wait = True
+        blocks = [self.tf.async_copy(block.int(), 'cuda') for block in blocks]
+        return blocks
+
+    @nvtx.annotate("dl_block_async")
+    def block_async(self, blocks):
+        #will forcely sync previous delivered async_copy. ban ban ban
+        blocks = [block.int().to('cuda', non_blocking=True) for block in blocks]
+        return blocks
+
+    @nvtx.annotate("dl_raw_next")
+    def raw_next(self, iter):
+        return next(iter)
+
+    @nvtx.annotate("dl_fetch_uvm", color="red")
+    def fetch_uvm(self):
+        self.is_uvm = True
         try:
             for i in range(self.bundle_size):
-                input_nodes, output_nodes, blocks = next(self.iter_)
+                input_nodes, output_nodes, blocks = self.raw_next(self.iter_)
+
+                t0 = time.perf_counter()
+
+                src = self.slice_uvm(self.src_input, blocks[0].srcdata['_ID']) # ~11ms
+                dst = self.slice_uvm(self.dst_input, blocks[-1].dstdata['_ID'])
+                res = input_nodes, output_nodes, blocks, src, dst
+                self.queue.append(res)
+
+                self.tt.append(time.perf_counter() - t0)
+        except StopIteration:
+            pass
+
+    @nvtx.annotate("dl_idx_to_sync")
+    def idx_to_sync(self, idx, dev):
+        return idx.to(dev)
+
+    @nvtx.annotate("dl_fetch_async2", color="red")
+    def fetch_async2(self):
+        try:
+            for i in range(self.bundle_size):
+                input_nodes, output_nodes, blocks = self.raw_next(self.iter_)
+
+                tf = self.tf
+                #tf = AsyncTransferer("cuda")
+
+                t0 = time.perf_counter()
+                src = self.slice(self.src_input, self.idx_to_sync(blocks[0].srcdata['_ID'],'cpu'))
+                src = tf.async_copy(src, 'cuda')
+                dst = self.slice(self.dst_input, self.idx_to_sync(blocks[-1].dstdata['_ID'],'cpu'))
+                dst = tf.async_copy(dst, 'cuda')
+
+                res = input_nodes, output_nodes, blocks, src, dst
+                self.queue.append(res)     
+
+                self.tt.append(time.perf_counter() - t0)
+        except StopIteration:
+            pass 
+
+    @nvtx.annotate("dl_fetch_async", color="red")
+    def fetch_async(self):
+        try:
+            for i in range(self.bundle_size):
+                input_nodes, output_nodes, blocks = self.raw_next(self.iter_)
 
                 t0 = time.perf_counter()
                 src = self.slice(self.src_input, blocks[0].srcdata['_ID']) # ~11ms
                 src = self.tf.async_copy(src, 'cuda')
                 dst = self.slice(self.dst_input, blocks[-1].dstdata['_ID'])
                 dst = self.tf.async_copy(dst, 'cuda')
+
+                #blocks = self.block_sync(blocks)
+                #blocks = self.block_async(blocks)
+                #blocks = self.block_async_tf(blocks)
+
                 res = input_nodes, output_nodes, blocks, src, dst
-                self.queue.append(res)
-
-                #print("============ push info, id: {}, handle: {}".format(src._transfer_id, src._handle))
-
-
-                #blocks = self.block_to(blocks)
+                self.queue.append(res)     
 
                 self.tt.append(time.perf_counter() - t0)
         except StopIteration:
             pass
     @nvtx.annotate("dl_fetch_sync", color="red")
     def fetch_sync(self):
+        self.is_sync = True
         try:
             for _ in range(self.bundle_size):
-                input_nodes, output_nodes, blocks = next(self.iter_)
+                input_nodes, output_nodes, blocks = self.raw_next(self.iter_)
                 t0 = time.perf_counter()
                 src = self.slice(self.src_input, blocks[0].srcdata['_ID']).to('cuda')
                 dst = self.slice(self.dst_input, blocks[-1].dstdata['_ID']).to('cuda')
-                #src = self.src_input.index_select(0,blocks[0].srcdata['_ID']).to('cuda')
-                #dst = self.dst_input.index_select(0, blocks[-1].dstdata['_ID']).to('cuda')
-                #dst.pin_memory()
                 res = input_nodes, output_nodes, blocks, src, dst
                 self.queue.append(res)
                 self.tt.append(time.perf_counter() - t0)
