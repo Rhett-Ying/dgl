@@ -318,8 +318,10 @@ class _NodeDataLoaderIter:
         return self
 
     def __next__(self):
+        #print("-------- _NodeDataLoaderIter.__next__  begin")
         # input_nodes, output_nodes, blocks
         result_ = next(self.iter_)
+        #print("-------- _NodeDataLoaderIter.__next__ end")
         _restore_blocks_storage(result_[-1], self.node_dataloader.collator.g)
 
         result = [_to_device(data, self.device) for data in result_]

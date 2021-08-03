@@ -446,6 +446,7 @@ class NodeCollator(Collator):
         MFGs : list[DGLGraph]
             The list of MFGs necessary for computing the representation.
         """
+        #print("~~~~~~~~ dl::NodeCollator::collate()")
         if isinstance(items[0], tuple):
             # returns a list of pairs: group them by node types into a dict
             items = utils.group_as_dict(items)
@@ -453,7 +454,9 @@ class NodeCollator(Collator):
         else:
             items = _prepare_tensor(self.g, items, 'items', self._is_distributed)
 
+        #print("~~~~~~~~ dl::NodeCollator::sample_blocks() begin")
         blocks = self.block_sampler.sample_blocks(self.g, items)
+        #print("~~~~~~~~ dl::NodeCollator::sample_blocks() end")
         output_nodes = blocks[-1].dstdata[NID]
         input_nodes = blocks[0].srcdata[NID]
 
