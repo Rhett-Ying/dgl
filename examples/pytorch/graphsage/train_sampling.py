@@ -47,7 +47,7 @@ def select(in_tensor, idx):
 
 @nvtx.annotate("select_hp")
 def select_hp(in_tensor, idx):
-    idx = idx.to('cpu')
+    #idx = idx.to('cpu')
     shape = list(in_tensor.shape)
     shape[0]=len(idx)
     #out_tensor = th.empty(*shape, dtype=in_tensor.dtype, pin_memory=True)
@@ -71,78 +71,41 @@ def load_subtensor(nfeat, labels, seeds, input_nodes, device):
     batch_labels = to(select_hp(labels, seeds), device)
     return batch_inputs, batch_labels
 
-g_snap = 0.005
-
 @nvtx.annotate("proc_dl")
-def process_dl(dataloader, dl_output, dl_done, dep_done):
-    #logger = mp.log_to_stderr()
-    #logger.setLevel(logging.INFO)
-    #logger.info("thread_dl get started...")
-    limit = 500
-    #snap = 0.1
+def process_dl(dataloader, dl_output, blocks_output):
     for input_nodes, output_nodes, blocks in dataloader:
-        #logger.info("thread_dl next...")
-        while True:
-            if dl_output.qsize() > limit:
-                #logger.info("thread_dl sleeps")
-                time.sleep(g_snap)
-            else:
-                break
-        dl_output.put((input_nodes, output_nodes, blocks))
-        #logger.info("thread_dl put...")
-    dl_done.value = True
-    """
-    while not dep_done.value:
-        time.sleep(snap)
-    """
-    #logger.info("------ process_dl is done...")
+        h_p_dl_put = nvtx.start_range(message="p_dl_put")
+        dl_output.put((input_nodes.share_memory_(), output_nodes.share_memory_()))
+        nvtx.end_range(h_p_dl_put)
+        blocks_output.append(blocks)
 
 @nvtx.annotate("proc_tf")
-def process_tf(dl_output, dl_done, tf_output, tf_done, feat, lab, dep_done, device = 'cpu'):
-    h_p_tf = nvtx.start_range(message="p_tf")
-    #logger = mp.log_to_stderr()
-    #logger.setLevel(logging.INFO)
-    #logger.info("thread_tf get started...")
-    limit = 5
-    #snap = 0.01
-    #logger.info(dl_done.value)
-    #logger.info(dl_output.empty())
-    #while not g_dl_done.value or (not g_dl_output.empty() and g_dl_output.qsize() > 0):
-    while not dl_done.value or not dl_output.empty():
-        if tf_output.qsize() > limit:
-            time.sleep(g_snap)
-            #logger.info("thread_tf sleeps")
-            continue
+def process_tf(dl_output, tf_output, tf_done, run_done, feat, lab, device = 'cpu'):
+    while not dl_output.empty():
         h_p_tf_get = nvtx.start_range(message="p_tf_get")
-        try:
-            input_nodes, output_nodes, blocks = dl_output.get(timeout=g_snap)
-        except Empty:
-            continue
+        input_nodes, output_nodes = dl_output.get()
         nvtx.end_range(h_p_tf_get)
+
         h_p_tf_idx = nvtx.start_range(message="p_tf_idx")
         s_feat = to(select_hp(feat, input_nodes), device)
         s_lab = to(select_hp(lab, output_nodes), device)
         nvtx.end_range(h_p_tf_idx)
-        blocks = [block.int().to(device) for block in blocks]
-        #input_nodes = input_nodes.to(device)
-        #output_nodes = output_nodes.to(device)
-        tf_output.put((blocks, s_feat, s_lab))
-        #logger.info("thread_tf put...")
-        #g_dl_output.task_done()
-    nvtx.end_range(h_p_tf)
+        #blocks = [block.int().to(device) for block in blocks]
+
+        h_p_tf_put = nvtx.start_range(message="p_tf_put")
+        #s_feat = th.rand(s_feat.shape)
+        #s_lab = th.zeros(s_lab.shape, dtype=th.long)
+        tf_output.put((s_feat.share_memory_(), s_lab.share_memory_()))
+        nvtx.end_range(h_p_tf_put)
     tf_done.value = True
-    while not dep_done.value:
-        time.sleep(g_snap)    
-    #logger.info("-------- thread_tf is done...")
+    run_done.wait()
+    print("-------- process_tf is done...")
 
 
 
 #### Entry point
 @nvtx.annotate("run", color="blue")
 def run(args, device, data):
-    #logger = mp.log_to_stderr()
-    #logger.setLevel(logging.INFO)
-    #logger.info("main_run get started...")
     # Unpack data
     n_classes, train_g, val_g, test_g, train_nfeat, train_labels, \
     val_nfeat, val_labels, test_nfeat, test_labels = data
@@ -196,33 +159,27 @@ def run(args, device, data):
             blocks = [block.int().to(device) for block in blocks]
         """
 
-
-        
-        #threading.Thread(target=thread_dl, args=(dataloader,), daemon=True).start()
-        #threading.Thread(target=thread_tf, args=(train_nfeat,train_labels,), daemon=True).start()
-
         dl_output = mp.Queue()
-        dl_done = mp.Value('b', False)
-        tf_output = mp.Queue()
+        tf_output = mp.Queue(10)
         tf_done = mp.Value('b', False)
-        run_done = mp.Value('b', False)
-        #mp.Process(target=process_dl, args=(dataloader, dl_output, dl_done, tf_done), daemon=True).start()
-        h_dl = nvtx.start_range(message="process_dl")
-        process_dl(dataloader, dl_output, dl_done, tf_done)
-        nvtx.end_range(h_dl)
-        #train_nfeat.share_memory_()
-        mp.Process(target=process_tf, args=( dl_output, dl_done, tf_output, tf_done, train_nfeat,train_labels,
-            run_done), daemon=True).start()
+        run_done = mp.Event()
+        blocks_output = []
+        process_dl(dataloader, dl_output, blocks_output)
+
+        p_tf = mp.Process(target=process_tf, args=( dl_output, tf_output, tf_done, run_done, train_nfeat,train_labels))
+        p_tf.start()
         
+        time.sleep(2)
         step = -1
         while not tf_done.value or not tf_output.empty():
-            #h_tf_get = nvtx.start_range(message="tf_get")
             try:
-                blocks, batch_inputs, batch_labels = tf_output.get(timeout = g_snap)
+                h_tf_get = nvtx.start_range(message="tf_get")
+                batch_inputs, batch_labels = tf_output.get()
+                nvtx.end_range(h_tf_get)
             except Empty:
                 continue
-            #nvtx.end_range(h_tf_get)
             step += 1
+            blocks = blocks_output.pop(0)
             seeds = blocks[-1].dstdata[dgl.NID]
 
             h_model = nvtx.start_range(message="model_fwd/bwd")
@@ -241,8 +198,8 @@ def run(args, device, data):
                 print('Epoch {:05d} | Step {:05d} | Loss {:.4f} | Train Acc {:.4f} | Speed (samples/sec) {:.4f} | GPU {:.1f} MB'.format(
                     epoch, step, loss.item(), acc.item(), np.mean(iter_tput[3:]), gpu_mem_alloc))
             tic_step = time.time()
-        
-        run_done.value = True
+        run_done.set()
+        p_tf.join()
         nvtx.end_range(h_for)
 
         toc = time.time()
