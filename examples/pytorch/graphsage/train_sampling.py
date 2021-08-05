@@ -72,18 +72,36 @@ def load_subtensor(nfeat, labels, seeds, input_nodes, device):
     return batch_inputs, batch_labels
 
 @nvtx.annotate("proc_dl")
-def process_dl(dataloader, dl_output, blocks_output):
+def process_dl(dataloader, feat, label, dl_output, dep_done):
+    tf = dgl.dataloading.AsyncTransferer('cuda')
     for input_nodes, output_nodes, blocks in dataloader:
+        h_p_dl_body = nvtx.start_range(message="p_dl_body")
+        
+        input_nodes = to(input_nodes,'cpu')
+        output_nodes = to(output_nodes,'cpu')
+
+        s_feat = to(select_hp(feat, input_nodes), 'cpu')
+        s_lab = to(select_hp(label, output_nodes), 'cpu')
+
+        fut_feat = tf.async_copy(s_feat, 'cuda')
+        fut_lab = tf.async_copy(s_lab, 'cuda')
+
         h_p_dl_put = nvtx.start_range(message="p_dl_put")
-        dl_output.put((input_nodes.share_memory_(), output_nodes.share_memory_()))
+        dl_output.put((fut_feat, fut_lab, blocks))
         nvtx.end_range(h_p_dl_put)
-        blocks_output.append(blocks)
+
+        nvtx.end_range(h_p_dl_body)
+
+    dl_output.put((None,None,None))
+    dep_done.wait()
+    print("process_dl is exiting...")
 
 @nvtx.annotate("proc_tf")
-def process_tf(dl_output, tf_output, tf_done, run_done, feat, lab, device = 'cpu'):
+def process_tf(dl_output, tf_output, tf_dep_done, tf_done, run_done, feat, lab, device = 'cpu'):
+    tf = dgl.dataloading.AsyncTransferer('cuda')
     while not dl_output.empty():
         h_p_tf_get = nvtx.start_range(message="p_tf_get")
-        input_nodes, output_nodes = dl_output.get()
+        input_nodes, output_nodes, blocks = dl_output.get()
         nvtx.end_range(h_p_tf_get)
 
         h_p_tf_idx = nvtx.start_range(message="p_tf_idx")
@@ -95,9 +113,10 @@ def process_tf(dl_output, tf_output, tf_done, run_done, feat, lab, device = 'cpu
         h_p_tf_put = nvtx.start_range(message="p_tf_put")
         #s_feat = th.rand(s_feat.shape)
         #s_lab = th.zeros(s_lab.shape, dtype=th.long)
-        tf_output.put((s_feat.share_memory_(), s_lab.share_memory_()))
+        tf_output.put((s_feat.share_memory_(), s_lab.share_memory_(), blocks))
         nvtx.end_range(h_p_tf_put)
     tf_done.value = True
+    tf_dep_done.set()
     run_done.wait()
     print("-------- process_tf is done...")
 
@@ -118,7 +137,7 @@ def run(args, device, data):
     if args.sample_gpu:
         train_nid = train_nid.to(device)
         # copy only the csc to the GPU
-        train_g = train_g.formats(['csc'])
+        train_g = train_g.formats(['csc', 'csr'])
         train_g = train_g.to(device)
         dataloader_device = device
 
@@ -159,29 +178,34 @@ def run(args, device, data):
             blocks = [block.int().to(device) for block in blocks]
         """
 
-        dl_output = mp.Queue()
-        tf_output = mp.Queue(10)
-        tf_done = mp.Value('b', False)
-        run_done = mp.Event()
-        blocks_output = []
-        process_dl(dataloader, dl_output, blocks_output)
+        ctx = mp.get_context('spawn')
+        dl_output = ctx.Queue(5)
+        dl_dep = ctx.Event()
 
-        p_tf = mp.Process(target=process_tf, args=( dl_output, tf_output, tf_done, run_done, train_nfeat,train_labels))
-        p_tf.start()
-        
-        time.sleep(2)
+        train_labels.share_memory_()
+        train_nfeat.share_memory_()
+        p_dl = ctx.Process(target=process_dl, args=(dataloader, train_nfeat, train_labels, dl_output, dl_dep))
+        p_dl.start()
+
         step = -1
-        while not tf_done.value or not tf_output.empty():
+        while True:
             try:
-                h_tf_get = nvtx.start_range(message="tf_get")
-                batch_inputs, batch_labels = tf_output.get()
-                nvtx.end_range(h_tf_get)
+                h_dl_get = nvtx.start_range(message="dl_get")
+                input_nodes, output_nodes, blocks = dl_output.get(timeout=0.1)
+                nvtx.end_range(h_dl_get)
+                if input_nodes is None:
+                    break
             except Empty:
+                time.sleep(0.1)
                 continue
+            h_fut_wait = nvtx.start_range(message="fut_wait")
+            batch_inputs = input_nodes.wait()
+            batch_labels= output_nodes.wait()
+            nvtx.end_range(h_fut_wait)
+            
             step += 1
-            blocks = blocks_output.pop(0)
             seeds = blocks[-1].dstdata[dgl.NID]
-
+        
             h_model = nvtx.start_range(message="model_fwd/bwd")
             # Compute loss and prediction
             batch_pred = model(blocks, batch_inputs)
@@ -198,8 +222,9 @@ def run(args, device, data):
                 print('Epoch {:05d} | Step {:05d} | Loss {:.4f} | Train Acc {:.4f} | Speed (samples/sec) {:.4f} | GPU {:.1f} MB'.format(
                     epoch, step, loss.item(), acc.item(), np.mean(iter_tput[3:]), gpu_mem_alloc))
             tic_step = time.time()
-        run_done.set()
-        p_tf.join()
+        
+        dl_dep.set()
+        p_dl.join()
         nvtx.end_range(h_for)
 
         toc = time.time()
