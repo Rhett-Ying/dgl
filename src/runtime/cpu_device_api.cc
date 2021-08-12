@@ -10,6 +10,8 @@
 #include <cstring>
 #include "workspace_pool.h"
 
+#include <cuda_runtime.h>
+
 namespace dgl {
 namespace runtime {
 class CPUDeviceAPI final : public DeviceAPI {
@@ -24,6 +26,7 @@ class CPUDeviceAPI final : public DeviceAPI {
                        size_t nbytes,
                        size_t alignment,
                        DGLType type_hint) final {
+    //std::cout<<"------- AllocDataSpace"<<std::endl;
     void* ptr;
 #if _MSC_VER || defined(__MINGW32__)
     ptr = _aligned_malloc(nbytes, alignment);
@@ -32,8 +35,9 @@ class CPUDeviceAPI final : public DeviceAPI {
     ptr = memalign(alignment, nbytes);
     if (ptr == nullptr) throw std::bad_alloc();
 #else
-    int ret = posix_memalign(&ptr, alignment, nbytes);
-    if (ret != 0) throw std::bad_alloc();
+    cudaMallocHost(&ptr, nbytes);
+    //int ret = posix_memalign(&ptr, alignment, nbytes);
+    //if (ret != 0) throw std::bad_alloc();
 #endif
     return ptr;
   }
@@ -42,7 +46,8 @@ class CPUDeviceAPI final : public DeviceAPI {
 #if _MSC_VER || defined(__MINGW32__)
     _aligned_free(ptr);
 #else
-    free(ptr);
+    //free(ptr);
+    cudaFreeHost(ptr);
 #endif
   }
 

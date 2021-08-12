@@ -254,6 +254,20 @@ HeteroGraphPtr HeteroGraph::AsNumBits(HeteroGraphPtr g, uint8_t bits) {
                                         hgindex->num_verts_per_type_));
 }
 
+HeteroGraphPtr HeteroGraph::AsyncCopyTo(HeteroGraphPtr g, const DLContext& ctx) {
+  if (ctx == g->Context()) {
+    return g;
+  }
+  auto hgindex = std::dynamic_pointer_cast<HeteroGraph>(g);
+  CHECK_NOTNULL(hgindex);
+  std::vector<HeteroGraphPtr> rel_graphs;
+  for (auto g : hgindex->relation_graphs_) {
+    rel_graphs.push_back(UnitGraph::AsyncCopyTo(g, ctx));
+  }
+  return HeteroGraphPtr(new HeteroGraph(hgindex->meta_graph_, rel_graphs,
+                                        hgindex->num_verts_per_type_));
+}
+
 HeteroGraphPtr HeteroGraph::CopyTo(HeteroGraphPtr g, const DLContext& ctx) {
   if (ctx == g->Context()) {
     return g;

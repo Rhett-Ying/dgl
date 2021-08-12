@@ -9,6 +9,8 @@
 #include <dgl/runtime/registry.h>
 #include <cuda_runtime.h>
 #include "cuda_common.h"
+#include <nvToolsExt.h>
+#include <vector>
 
 namespace dgl {
 namespace runtime {
@@ -112,6 +114,7 @@ class CUDADeviceAPI final : public DeviceAPI {
                       DGLContext ctx_to,
                       DGLType type_hint,
                       DGLStreamHandle stream) final {
+    nvtxRangePush(__FUNCTION__);
     cudaStream_t cu_stream = static_cast<cudaStream_t>(stream);
     from = static_cast<const char*>(from) + from_offset;
     to = static_cast<char*>(to) + to_offset;
@@ -129,10 +132,13 @@ class CUDADeviceAPI final : public DeviceAPI {
       GPUCopy(from, to, size, cudaMemcpyDeviceToHost, cu_stream);
     } else if (ctx_from.device_type == kDLCPU && ctx_to.device_type == kDLGPU) {
       CUDA_CALL(cudaSetDevice(ctx_to.device_id));
+      auto id = nvtxRangeStart("cudaHtoD");
       GPUCopy(from, to, size, cudaMemcpyHostToDevice, cu_stream);
+      nvtxRangeEnd(id);
     } else {
       LOG(FATAL) << "expect copy from/to GPU or between GPU";
     }
+    nvtxRangePop();
   }
 
   DGLStreamHandle CreateStream(DGLContext ctx) {
@@ -195,17 +201,25 @@ class CUDADeviceAPI final : public DeviceAPI {
   }
 
  private:
-  static void GPUCopy(const void* from,
-                      void* to,
-                      size_t size,
-                      cudaMemcpyKind kind,
-                      cudaStream_t stream) {
-    CUDA_CALL(cudaMemcpyAsync(to, from, size, kind, stream));
-    if (stream == 0 && kind == cudaMemcpyDeviceToHost) {
-      // only wait for the copy, when it's on the default stream, and it's to host memory
-      CUDA_CALL(cudaStreamSynchronize(stream));
-    }
-  }
+   static void GPUCopy(const void *from, void *to, size_t size,
+                       cudaMemcpyKind kind, cudaStream_t stream) {
+     nvtxRangePush(__FUNCTION__);
+     auto id = nvtxRangeStart("GPUCopy_Memcpy");
+     if (stream == nullptr) {
+       CUDA_CALL(cudaMemcpy(to, from, size, kind));
+     } else {
+       CUDA_CALL(cudaMemcpyAsync(to, from, size, kind, stream));
+     }
+     nvtxRangeEnd(id);
+     /*
+     if (stream == nullptr && kind == cudaMemcpyDeviceToHost) {
+       // only wait for the copy, when it's on the default stream, and it's to
+       // host memory
+       CUDA_CALL(cudaStreamSynchronize(stream));
+     }
+     */
+     nvtxRangePop();
+   }
 };
 
 typedef dmlc::ThreadLocalStore<CUDAThreadEntry> CUDAThreadStore;

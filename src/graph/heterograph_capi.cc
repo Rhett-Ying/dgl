@@ -457,6 +457,18 @@ DGL_REGISTER_GLOBAL("heterograph_index._CAPI_DGLHeteroAsNumBits")
     *rv = HeteroGraphRef(hg_new);
   });
 
+DGL_REGISTER_GLOBAL("heterograph_index._CAPI_DGLHeteroAsyncCopyTo")
+.set_body([] (DGLArgs args, DGLRetValue* rv) {
+    HeteroGraphRef hg = args[0];
+    int device_type = args[1];
+    int device_id = args[2];
+    DLContext ctx;
+    ctx.device_type = static_cast<DLDeviceType>(device_type);
+    ctx.device_id = device_id;
+    HeteroGraphPtr hg_new = HeteroGraph::AsyncCopyTo(hg.sptr(), ctx);
+    *rv = HeteroGraphRef(hg_new);
+  });
+
 DGL_REGISTER_GLOBAL("heterograph_index._CAPI_DGLHeteroCopyTo")
 .set_body([] (DGLArgs args, DGLRetValue* rv) {
     HeteroGraphRef hg = args[0];

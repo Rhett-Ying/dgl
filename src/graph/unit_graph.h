@@ -20,6 +20,8 @@
 
 #include "../c_api_common.h"
 
+#include <dgl/runtime/device_api.h>
+
 namespace dgl {
 
 class HeteroGraph;
@@ -206,6 +208,7 @@ class UnitGraph : public BaseHeteroGraph {
 
   /*! \brief Copy the data to another context */
   static HeteroGraphPtr CopyTo(HeteroGraphPtr g, const DLContext& ctx);
+  static HeteroGraphPtr AsyncCopyTo(HeteroGraphPtr g, const DLContext& ctx);
 
   /*! 
    * \brief Create in-edge CSR format of the unit graph.

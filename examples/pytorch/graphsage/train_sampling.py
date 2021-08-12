@@ -71,7 +71,7 @@ def load_subtensor(nfeat, labels, seeds, input_nodes, device):
     return batch_inputs, batch_labels
 
 @nvtx.annotate("td_dl")
-def thread_dl(dataloader, feat, label, dl_output):
+def thread_dl(dataloader, feat, label, dl_output, block2Gpu = False):
     tf = dgl.dataloading.AsyncTransferer('cuda')
     for input_nodes, output_nodes, blocks in dataloader:
         h_p_dl_body = nvtx.start_range(message="p_dl_body")
@@ -84,6 +84,11 @@ def thread_dl(dataloader, feat, label, dl_output):
 
         fut_feat = tf.async_copy(s_feat, 'cuda')
         fut_lab = tf.async_copy(s_lab, 'cuda')
+        h_p_dl_b2g = nvtx.start_range(message="p_dl_b2g")
+        if block2Gpu:
+            blocks = [block.async_to('cuda') for block in blocks]
+            #blocks = [tf.async_copy(block.int(), 'cuda') for block in blocks]
+        nvtx.end_range(h_p_dl_b2g)
 
         h_p_dl_put = nvtx.start_range(message="p_dl_put")
         dl_output.put((fut_feat, fut_lab, blocks))
@@ -93,31 +98,6 @@ def thread_dl(dataloader, feat, label, dl_output):
 
     dl_output.put((None,None,None))
     print("thread_dl is exiting...")
-
-@nvtx.annotate("proc_tf")
-def process_tf(dl_output, tf_output, tf_dep_done, tf_done, run_done, feat, lab, device = 'cpu'):
-    tf = dgl.dataloading.AsyncTransferer('cuda')
-    while not dl_output.empty():
-        h_p_tf_get = nvtx.start_range(message="p_tf_get")
-        input_nodes, output_nodes, blocks = dl_output.get()
-        nvtx.end_range(h_p_tf_get)
-
-        h_p_tf_idx = nvtx.start_range(message="p_tf_idx")
-        s_feat = to(select_hp(feat, input_nodes), device)
-        s_lab = to(select_hp(lab, output_nodes), device)
-        nvtx.end_range(h_p_tf_idx)
-        #blocks = [block.int().to(device) for block in blocks]
-
-        h_p_tf_put = nvtx.start_range(message="p_tf_put")
-        #s_feat = th.rand(s_feat.shape)
-        #s_lab = th.zeros(s_lab.shape, dtype=th.long)
-        tf_output.put((s_feat.share_memory_(), s_lab.share_memory_(), blocks))
-        nvtx.end_range(h_p_tf_put)
-    tf_done.value = True
-    tf_dep_done.set()
-    run_done.wait()
-    print("-------- process_tf is done...")
-
 
 
 #### Entry point
@@ -180,7 +160,7 @@ def run(args, device, data):
         """
 
         dl_output = queue.Queue(5)
-        threading.Thread(target=thread_dl, args=(dataloader, train_nfeat, train_labels, dl_output,), daemon=True).start()
+        threading.Thread(target=thread_dl, args=(dataloader, train_nfeat, train_labels, dl_output, True), daemon=True).start()
 
         step = -1
         while True:

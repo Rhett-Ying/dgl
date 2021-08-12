@@ -226,6 +226,7 @@ class HeteroGraph : public BaseHeteroGraph {
 
   /*! \brief Copy the data to another context */
   static HeteroGraphPtr CopyTo(HeteroGraphPtr g, const DLContext& ctx);
+  static HeteroGraphPtr AsyncCopyTo(HeteroGraphPtr g, const DLContext& ctx);
 
   /*! \brief Copy the data to shared memory.
   *

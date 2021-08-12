@@ -221,6 +221,7 @@ NDArray NDArray::Empty(std::vector<int64_t> shape,
     ret.data_->dl_tensor.data =
         DeviceAPI::Get(ret->ctx)->AllocDataSpace(
             ret->ctx, size, alignment, ret->dtype);
+
   return ret;
 }
 
