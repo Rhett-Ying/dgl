@@ -5342,6 +5342,10 @@ class DGLHeteroGraph(object):
         """
         return F.to_backend_ctx(self._graph.ctx)
 
+    def async_wait(self):
+        self._graph.async_wait()
+        return self
+
     def async_to(self, device, **kwargs):  # pylint: disable=invalid-name
         if device is None or self.device == device:
             return self
@@ -5350,7 +5354,9 @@ class DGLHeteroGraph(object):
 
         # 1. Copy graph structure
         ret._graph = self._graph.async_copy_to(utils.to_dgl_context(device))
+        #ret._graph = self._graph.copy_to(utils.to_dgl_context(device))
 
+        
         """
         # 2. Copy features
         # TODO(minjie): handle initializer

@@ -13,6 +13,11 @@
 
 #include <nvToolsExt.h>
 
+#ifdef DGL_USE_CUDA
+#include <cuda_runtime.h>
+#include "../runtime/cuda/cuda_common.h"
+#endif
+
 namespace dgl {
 
 namespace {
@@ -1235,8 +1240,9 @@ HeteroGraphPtr UnitGraph::AsNumBits(HeteroGraphPtr g, uint8_t bits) {
 }
 
 HeteroGraphPtr UnitGraph::AsyncCopyTo(HeteroGraphPtr g, const DLContext& ctx) {
-  nvtxRangePush(__FUNCTION__);
-  static DGLStreamHandle stream = nullptr;//runtime::DeviceAPI::Get(ctx)->CreateStream(ctx);
+  //nvtxRangePush(__FUNCTION__);
+  //static DGLStreamHandle stream = nullptr;//runtime::DeviceAPI::Get(ctx)->CreateStream(ctx);
+  DGLStreamHandle stream = dgl::runtime::AsyncTF::getInstance()._stream;
   //LOG(INFO)<<"------------- stream: "<< stream;
   if (ctx == g->Context()) {
     return g;
@@ -1252,7 +1258,7 @@ HeteroGraphPtr UnitGraph::AsyncCopyTo(HeteroGraphPtr g, const DLContext& ctx) {
     return HeteroGraphPtr(
         new UnitGraph(g->meta_graph(), new_incsr, new_outcsr, new_coo, bg->formats_));
   }
-  nvtxRangePop();
+  //nvtxRangePop();
 }
 
 HeteroGraphPtr UnitGraph::CopyTo(HeteroGraphPtr g, const DLContext& ctx) {

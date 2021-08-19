@@ -15,6 +15,7 @@ import dgl.multiprocessing as mp
 import logging
 from queue import Empty
 import nvtx
+import gc
 
 from model import SAGE
 from load_graph import load_reddit, inductive_split, load_ogb
@@ -50,9 +51,7 @@ def select_hp(in_tensor, idx):
     #idx = idx.to('cpu')
     shape = list(in_tensor.shape)
     shape[0]=len(idx)
-    h_shp_empty = nvtx.start_range(message="p_shp_empty")
     out_tensor = th.empty(*shape, dtype=in_tensor.dtype, pin_memory=True)
-    nvtx.end_range(h_shp_empty)
     assert in_tensor.device == th.device('cpu')
     assert idx.device == th.device('cpu')
     th.index_select(in_tensor, 0,idx, out=out_tensor)
@@ -71,43 +70,6 @@ def load_subtensor(nfeat, labels, seeds, input_nodes, device):
     batch_inputs = to(select_hp(nfeat, input_nodes), device)
     batch_labels = to(select_hp(labels, seeds), device)
     return batch_inputs, batch_labels
-
-#g_tf = dgl.dataloading.AsyncTransferer('cuda')
-@nvtx.annotate("DataLoader_thread")
-def thread_dl(dataloader, feat, label, dl_output, block2Gpu = False):
-    tf = dgl.dataloading.AsyncTransferer('cuda')
-    g_blocks = []
-    for input_nodes, output_nodes, blocks in dataloader:
-        h_p_dl_body = nvtx.start_range(message="dl_each")
-        
-        h_p_dl_b2g = nvtx.start_range(message="dl_block2gpu")
-        if block2Gpu:
-            if (len(g_blocks) == 40):
-                g_blocks.pop(0)
-                g_blocks.pop(0)
-            g_blocks.append(blocks)
-            blocks = [block.async_to('cuda') for block in blocks]
-        nvtx.end_range(h_p_dl_b2g)
-
-        h_p_dl_feat = nvtx.start_range(message="dl_feat2gpu")
-
-        input_nodes = to(input_nodes,'cpu')
-        output_nodes = to(output_nodes,'cpu')
-        s_feat = to(select_hp(feat, input_nodes), 'cpu')
-        s_lab = to(select_hp(label, output_nodes), 'cpu')
-
-        fut_feat = tf.async_copy(s_feat, 'cuda')
-        fut_lab = tf.async_copy(s_lab, 'cuda') 
-
-        nvtx.end_range(h_p_dl_feat)
-
-        dl_output.put((fut_feat, fut_lab, blocks))
-
-        nvtx.end_range(h_p_dl_body)
-
-    dl_output.put((None,None,None))
-    print("thread_dl is exiting...")
-
 
 #### Entry point
 @nvtx.annotate("run")
@@ -157,38 +119,31 @@ def run(args, device, data):
         # blocks.
         tic_step = time.time()
         h_for = nvtx.start_range(message="epoch")
+        tf = dgl.dataloading.AsyncTransferer('cuda')
+        for step, (input_nodes, seeds, blocks) in enumerate(dataloader):
+            h_dl_prep_data = nvtx.start_range(message="dl_prepare_data", color="blue")
+            # Load the input features as well as output labels
+            seeds = seeds.to('cpu')
+            input_nodes = input_nodes.to('cpu')
 
-        dl_output = queue.Queue(10)
-        threading.Thread(target=thread_dl, args=(dataloader, train_nfeat, train_labels, dl_output, True), daemon=True).start()
-
-        step = -1
-        while True:
-            #h_dl_prep_data = nvtx.start_range(message="dl_prepare_data", color="blue")
-            #h_dl_get = nvtx.start_range(message="dl_get", color="blue")
-            input_nodes, output_nodes, blocks = dl_output.get()
-            #nvtx.end_range(h_dl_get)
-            if input_nodes is None:
-                break
-            h_fut_wait = nvtx.start_range(message="fut_wait", color="yellow")
-            batch_inputs = input_nodes.wait()
-            batch_labels = output_nodes.wait()
-            #blocks = [block.async_wait() for block in blocks]
-            nvtx.end_range(h_fut_wait)
+            batch_inputs, batch_labels = load_subtensor(train_nfeat, train_labels,
+                                                        seeds, input_nodes, device)
+        
+            blocks = [block.to('cuda') for block in blocks]
             
-            step += 1
-            seeds = blocks[-1].dstdata[dgl.NID]
+            nvtx.end_range(h_dl_prep_data)
 
-            #nvtx.end_range(h_dl_prep_data)
-
-            h_model = nvtx.start_range(message="model_fwd/bwd",color="green") 
+            h_model = nvtx.start_range(message="model_fwd/bwd",color="green")
             # Compute loss and prediction
-           
-            batch_pred = model(blocks, batch_inputs) #sth. wrong here
+            batch_pred = model(blocks, batch_inputs)
+
             loss = loss_fcn(batch_pred, batch_labels)
             optimizer.zero_grad()
-            loss.backward()         
-            optimizer.step()
+            loss.backward()
 
+            
+            optimizer.step()
+            th.cuda.empty_cache()
             nvtx.end_range(h_model)
 
             iter_tput.append(len(seeds) / (time.time() - tic_step))
@@ -264,7 +219,6 @@ if __name__ == '__main__':
     else:
         train_g = val_g = test_g = g
         train_nfeat = val_nfeat = test_nfeat = g.ndata.pop('features')
-        print("--------- train_nfeat.shape: {}".format(train_nfeat.shape))
         if 'feat' in g.ndata:
             g.ndata.pop('feat')
         if 'label' in g.ndata:

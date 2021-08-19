@@ -19,6 +19,12 @@
 #include "./unit_graph.h"
 #include "shared_mem_manager.h"
 
+#include <dgl/runtime/device_api.h>
+#ifdef DGL_USE_CUDA
+#include <cuda_runtime.h>
+#include "../runtime/cuda/cuda_common.h"
+#endif
+
 namespace dgl {
 
 /*! \brief Heterograph */
@@ -27,7 +33,15 @@ class HeteroGraph : public BaseHeteroGraph {
   HeteroGraph(
       GraphPtr meta_graph,
       const std::vector<HeteroGraphPtr>& rel_graphs,
-      const std::vector<int64_t>& num_nodes_per_type = {});
+      const std::vector<int64_t>& num_nodes_per_type = {}, const bool cudaEventSync = false);
+
+  ~HeteroGraph(){
+    #ifdef DGL_USE_CUDA
+    if(_wait){
+    CUDA_CALL(cudaEventDestroy(_cudaEvent));
+    }
+    #endif
+  }
 
   HeteroGraphPtr GetRelationGraph(dgl_type_t etype) const override {
     CHECK_LT(etype, meta_graph_->NumEdges()) << "Invalid edge type: " << etype;
@@ -227,6 +241,18 @@ class HeteroGraph : public BaseHeteroGraph {
   /*! \brief Copy the data to another context */
   static HeteroGraphPtr CopyTo(HeteroGraphPtr g, const DLContext& ctx);
   static HeteroGraphPtr AsyncCopyTo(HeteroGraphPtr g, const DLContext& ctx);
+  cudaEvent_t _cudaEvent;
+  bool _wait;
+  void wait(){
+    #ifdef DGL_USE_CUDA
+    if(_wait){
+      CUDA_CALL(cudaEventSynchronize(_cudaEvent));
+      //CUDA_CALL(cudaStreamSynchronize(static_cast<cudaStream_t>(dgl::runtime::AsyncTF::getInstance()._stream)));
+      //std::cout<<"---------- wait done for "<< (void*)this <<std::endl;
+      //_wait = false;
+    }
+    #endif
+  }
 
   /*! \brief Copy the data to shared memory.
   *

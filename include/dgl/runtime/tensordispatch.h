@@ -39,6 +39,7 @@
 #endif  // WIN32
 #include <vector>
 #include "ndarray.h"
+#include <mutex>
 
 /*! \brief Casts a pointer \c entry to a function pointer with signature of \c func */
 #define FUNCCAST(func, entry)   (*reinterpret_cast<decltype(&(func))>(entry))
@@ -73,6 +74,7 @@ class TensorDispatcher {
    * Used in NDArray::Empty().
    */
   inline NDArray Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx) const {
+    std::lock_guard<std::mutex> lk(_mtx);
     auto entry = entrypoints_[Op::kEmpty];
     auto result = FUNCCAST(tensoradapter::TAempty, entry)(shape, dtype, ctx);
     return NDArray::FromDLPack(result);
@@ -111,6 +113,7 @@ class TensorDispatcher {
 #else   // !WIN32
   void* handle_;
 #endif  // WIN32
+  mutable std::mutex _mtx;
 };
 
 };  // namespace runtime

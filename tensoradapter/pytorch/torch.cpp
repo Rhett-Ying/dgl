@@ -37,8 +37,15 @@ DLManagedTensor* TAempty(
     .layout(torch::kStrided)
     .device(get_device(ctx))
     .dtype(at::toScalarType(dtype));
-    
+  /*
   if (ctx.device_type == kDLCPU){
+    for(const auto& e: shape){
+      std::cout<<e<<", ";
+    }
+    std::cout<<std::endl;
+  }
+  */
+  if (ctx.device_type == kDLCPU /*&& shape.front() < 30*1024*/){
     options = options.pinned_memory(true);
   }
   torch::Tensor tensor = torch::empty(shape, options);

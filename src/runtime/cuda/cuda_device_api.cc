@@ -204,20 +204,21 @@ class CUDADeviceAPI final : public DeviceAPI {
    static void GPUCopy(const void *from, void *to, size_t size,
                        cudaMemcpyKind kind, cudaStream_t stream) {
      nvtxRangePush(__FUNCTION__);
+     //LOG(INFO)<<"------- kind: "<< kind << ", stream: "<< stream;
      auto id = nvtxRangeStart("GPUCopy_Memcpy");
-     if (stream == nullptr) {
-       CUDA_CALL(cudaMemcpy(to, from, size, kind));
-     } else {
+     //if (stream == nullptr) {
+     //  CUDA_CALL(cudaMemcpy(to, from, size, kind));
+     //} else {
        CUDA_CALL(cudaMemcpyAsync(to, from, size, kind, stream));
-     }
+     //}
      nvtxRangeEnd(id);
-     /*
+     
      if (stream == nullptr && kind == cudaMemcpyDeviceToHost) {
        // only wait for the copy, when it's on the default stream, and it's to
        // host memory
        CUDA_CALL(cudaStreamSynchronize(stream));
      }
-     */
+     
      nvtxRangePop();
    }
 };

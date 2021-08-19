@@ -185,13 +185,21 @@ std::vector<UnitGraphPtr> CastToUnitGraphs(const std::vector<HeteroGraphPtr>& re
 HeteroGraph::HeteroGraph(
     GraphPtr meta_graph,
     const std::vector<HeteroGraphPtr>& rel_graphs,
-    const std::vector<int64_t>& num_nodes_per_type) : BaseHeteroGraph(meta_graph) {
+    const std::vector<int64_t>& num_nodes_per_type,
+    const bool cudaEventSync) : BaseHeteroGraph(meta_graph), _wait(cudaEventSync) {
   if (num_nodes_per_type.size() == 0)
     num_verts_per_type_ = InferNumVerticesPerType(meta_graph, rel_graphs);
   else
     num_verts_per_type_ = num_nodes_per_type;
   HeteroGraphSanityCheck(meta_graph, rel_graphs);
   relation_graphs_ = CastToUnitGraphs(rel_graphs);
+  #ifdef DGL_USE_CUDA
+  if(cudaEventSync){
+  CUDA_CALL(cudaEventCreate(&_cudaEvent));
+  DGLStreamHandle stream = nullptr;//dgl::runtime::AsyncTF::getInstance()._stream;
+  CUDA_CALL(cudaEventRecord(_cudaEvent, static_cast<cudaStream_t>(stream)));
+  }
+  #endif
 }
 
 bool HeteroGraph::IsMultigraph() const {
@@ -264,8 +272,9 @@ HeteroGraphPtr HeteroGraph::AsyncCopyTo(HeteroGraphPtr g, const DLContext& ctx) 
   for (auto g : hgindex->relation_graphs_) {
     rel_graphs.push_back(UnitGraph::AsyncCopyTo(g, ctx));
   }
+  //CUDA_CALL(cudaStreamSynchronize(static_cast<cudaStream_t>(dgl::runtime::AsyncTF::getInstance()._stream)));
   return HeteroGraphPtr(new HeteroGraph(hgindex->meta_graph_, rel_graphs,
-                                        hgindex->num_verts_per_type_));
+                                        hgindex->num_verts_per_type_, true));
 }
 
 HeteroGraphPtr HeteroGraph::CopyTo(HeteroGraphPtr g, const DLContext& ctx) {

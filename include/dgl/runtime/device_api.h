@@ -12,6 +12,16 @@
 
 namespace dgl {
 namespace runtime {
+
+class AsyncTF {
+public:
+    static AsyncTF& getInstance(){
+        static AsyncTF tf;
+        return tf;
+    }
+    DGLStreamHandle _stream = nullptr;
+};
+
 /*!
  * \brief the query type into GetAttr
  */

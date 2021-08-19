@@ -14,6 +14,7 @@
 #include <dgl/runtime/object.h>
 #include <unordered_map>
 #include <memory>
+#include <mutex>
 
 namespace dgl {
 namespace dataloading {
@@ -45,6 +46,15 @@ class AsyncTransferer : public runtime::Object {
  private:
   struct Event;
   struct Transfer {
+      /*
+      Transfer()=default;
+      Transfer(Transfer&& other): event(std::move(other.event)),
+      recorded(other.recorded),src(std::move(other.src)), dst(std::move(other.dst)){}
+      ~Transfer(){
+          std::cout<<"~Transfer....."<<std::endl;
+          event.reset(nullptr);
+      }
+      */
     std::unique_ptr<Event> event;
     bool recorded;
     runtime::NDArray src;
@@ -55,6 +65,7 @@ class AsyncTransferer : public runtime::Object {
   TransferId next_id_;
   std::unordered_map<TransferId, Transfer> transfers_;
   DGLStreamHandle stream_;
+  std::mutex _mtx;
 
   TransferId GenerateId();
 };

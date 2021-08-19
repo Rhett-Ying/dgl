@@ -13,6 +13,7 @@ from ...ndarray import NDArray as DGLNDArray
 from ... import backend as F
 from ...base import DGLError
 from ...utils import to_dgl_context
+import nvtx
 
 __all__ = ['NodeDataLoader', 'EdgeDataLoader', 'GraphDataLoader',
            # Temporary exposure.
@@ -317,11 +318,9 @@ class _NodeDataLoaderIter:
     def __iter__(self):
         return self
 
+    @nvtx.annotate("NodeDL_next")
     def __next__(self):
-        #print("-------- _NodeDataLoaderIter.__next__  begin")
-        # input_nodes, output_nodes, blocks
         result_ = next(self.iter_)
-        #print("-------- _NodeDataLoaderIter.__next__ end")
         _restore_blocks_storage(result_[-1], self.node_dataloader.collator.g)
 
         result = [_to_device(data, self.device) for data in result_]

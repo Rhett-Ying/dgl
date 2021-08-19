@@ -220,6 +220,9 @@ class HeteroGraphIndex(ObjectBase):
     def async_copy_to(self, ctx):
         return _CAPI_DGLHeteroAsyncCopyTo(self, ctx.device_type, ctx.device_id)
 
+    def async_wait(self):
+        return _CAPI_DGLHeteroAsyncWait(self)
+
     def copy_to(self, ctx):
         """Copy this immutable graph index to the given device context.
 

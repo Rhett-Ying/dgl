@@ -14,6 +14,12 @@
 #include "./heterograph.h"
 #include "unit_graph.h"
 
+#include <dgl/runtime/device_api.h>
+#ifdef DGL_USE_CUDA
+#include <cuda_runtime.h>
+#include "../runtime/cuda/cuda_common.h"
+#endif
+
 using namespace dgl::runtime;
 
 namespace dgl {
@@ -455,6 +461,15 @@ DGL_REGISTER_GLOBAL("heterograph_index._CAPI_DGLHeteroAsNumBits")
       hg_new = UnitGraph::AsNumBits(bhg_ptr, bits);
     }
     *rv = HeteroGraphRef(hg_new);
+  });
+
+DGL_REGISTER_GLOBAL("heterograph_index._CAPI_DGLHeteroAsyncWait")
+.set_body([] (DGLArgs args, DGLRetValue* rv) {
+    HeteroGraphRef hg = args[0];
+    HeteroGraphPtr bhg_ptr = hg.sptr();
+    auto hg_ptr = std::dynamic_pointer_cast<HeteroGraph>(bhg_ptr);
+    hg_ptr->wait();
+    *rv = hg;
   });
 
 DGL_REGISTER_GLOBAL("heterograph_index._CAPI_DGLHeteroAsyncCopyTo")
