@@ -30,6 +30,7 @@ from .graph_services import find_edges as dist_find_edges
 from .graph_services import out_degrees as dist_out_degrees
 from .graph_services import in_degrees as dist_in_degrees
 from .dist_tensor import DistTensor
+import time
 
 INIT_GRAPH = 800001
 
@@ -40,14 +41,16 @@ class InitGraphRequest(rpc.Request):
     This request tells the backup servers that they can map to the graph structure
     with shared memory.
     """
-    def __init__(self, graph_name):
+    def __init__(self, graph_name, client_id, group_id):
         self._graph_name = graph_name
+        self.client_id = client_id
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self._graph_name
+        return self._graph_name, self.client_id, self.group_id
 
     def __setstate__(self, state):
-        self._graph_name = state
+        self._graph_name, self.client_id, self.group_id = state
 
     def process_request(self, server_state):
         if server_state.graph is None:
@@ -359,12 +362,14 @@ class DistGraphServer(KVServer):
                 self.init_data(name=str(data_name), policy_str=data_name.policy_str,
                                data_tensor=edge_feats[name])
 
-    def start(self):
+    def start(self, keep_alive=False):
         """ Start graph store server.
         """
         # start server
-        server_state = ServerState(kv_store=self, local_g=self.client_g, partition_book=self.gpb)
-        print('start graph service on server {} for part {}'.format(self.server_id, self.part_id))
+        server_state = ServerState(
+            kv_store=self, local_g=self.client_g, partition_book=self.gpb, keep_alive=keep_alive)
+        print('start graph service on server {} for part {}'.format(
+            self.server_id, self.part_id))
         start_server(server_id=self.server_id,
                      ip_config=self.ip_config,
                      num_servers=self.num_servers,
@@ -443,7 +448,7 @@ class DistGraph:
     set of machines. If users need to run them on different sets of machines, it requires
     manually setting up servers and trainers. The setup is not fully tested yet.
     '''
-    def __init__(self, graph_name, gpb=None, part_config=None):
+    def __init__(self, graph_name, gpb=None, part_config=None, group_id=0):
         self.graph_name = graph_name
         self._gpb_input = gpb
         if os.environ.get('DGL_DIST_MODE', 'standalone') == 'standalone':
@@ -472,16 +477,15 @@ class DistGraph:
                                       edge_feats[name],
                                       EdgePartitionPolicy(self._gpb, etype=etype))
             self._client.map_shared_data(self._gpb)
-            rpc.set_num_client(1)
+            rpc.set_num_client(1, group_id)
         else:
-            self._init()
+            self._init()            
             # Tell the backup servers to load the graph structure from shared memory.
             for server_id in range(self._client.num_servers):
-                rpc.send_request(server_id, InitGraphRequest(graph_name))
+                rpc.send_request(server_id, InitGraphRequest(graph_name, rpc.get_rank(), rpc.get_group_id()))
             for server_id in range(self._client.num_servers):
                 rpc.recv_response()
             self._client.barrier()
-
         self._ndata_store = {}
         self._edata_store = {}
         self._ndata = NodeDataView(self)

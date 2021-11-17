@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <queue>
 #include <memory>
+#include <mutex>
 
 namespace dgl {
 namespace network {
@@ -35,6 +36,7 @@ class SocketPool {
    * \brief SocketPool constructor
    */
   SocketPool();
+  SocketPool(SocketPool&&);
 
   /*!
    * \brief Add a socket to SocketPool
@@ -64,6 +66,9 @@ class SocketPool {
    */
   std::shared_ptr<TCPSocket> GetActiveSocket(int* socket_id);
 
+  size_t size() const {
+    return socket_ids_.size();
+  }
  private:
   /*!
    * \brief Wait for event notification
@@ -89,6 +94,7 @@ class SocketPool {
    * \brief queue for current active fds
    */
   std::queue<int> pending_fds_;
+  std::mutex mtx_;
 };
 
 }  // namespace network

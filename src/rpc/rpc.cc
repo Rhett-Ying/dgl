@@ -59,21 +59,27 @@ RPCStatus RecvRPCMessage(RPCMessage* msg, int32_t timeout) {
   CHECK_EQ(timeout, 0) << "rpc cannot support timeout now.";
   network::Message rpc_meta_msg;
   int send_id;
+  bool debug = RPCContext::ThreadLocal()->receiver->Type_() == 1;
+  //if (debug) std::cout<<"~~~~~~~~~~ RecvRPCMessage::Recv is started...."<<std::endl;
   CHECK_EQ(RPCContext::ThreadLocal()->receiver->Recv(
     &rpc_meta_msg, &send_id), REMOVE_SUCCESS);
+    //if (debug) std::cout<<"~~~~~~~~~~ RecvRPCMessage::Recv is done...."<<std::endl;
   char* count_ptr = rpc_meta_msg.data+rpc_meta_msg.size-sizeof(int32_t);
   int32_t nonempty_ndarray_count = *(reinterpret_cast<int32_t*>(count_ptr));
   // Recv real ndarray data
   std::vector<void*> buffer_list(nonempty_ndarray_count);
+  //if (debug) std::cout<<"~~~~~~~~~~ RecvRPCMessage::RecvFrom is started...."<<nonempty_ndarray_count<<std::endl;
   for (int i = 0; i < nonempty_ndarray_count; ++i) {
     network::Message ndarray_data_msg;
     CHECK_EQ(RPCContext::ThreadLocal()->receiver->RecvFrom(
         &ndarray_data_msg, send_id), REMOVE_SUCCESS);
     buffer_list[i] = ndarray_data_msg.data;
   }
+  //if (debug) std::cout<<"~~~~~~~~~~ RecvRPCMessage::RecvFrom is done...."<<std::endl;
   StreamWithBuffer zc_read_strm(rpc_meta_msg.data, rpc_meta_msg.size-sizeof(int32_t), buffer_list);
   zc_read_strm.Read(msg);
   rpc_meta_msg.deallocator(&rpc_meta_msg);
+  //if (debug) std::cout<<"~~~~~~~~~~ RecvRPCMessage::return...."<<std::endl;
   return kRPCSuccess;
 }
 
@@ -101,9 +107,10 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCCreateReceiver")
   int64_t msg_queue_size = args[0];
   std::string type = args[1];
   int max_thread_count = args[2];
+  int type_ = args[3];
   if (type.compare("socket") == 0) {
     RPCContext::ThreadLocal()->receiver =
-      std::make_shared<network::SocketReceiver>(msg_queue_size, max_thread_count);
+      std::make_shared<network::SocketReceiver>(msg_queue_size, max_thread_count,type_);
   } else {
     LOG(FATAL) << "Unknown communicator type for rpc sender: " << type;
   }
@@ -114,9 +121,38 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCFinalizeSender")
   RPCContext::ThreadLocal()->sender->Finalize();
 });
 
+DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCFinalizeSenderWithID")
+.set_body([] (DGLArgs args, DGLRetValue* rv) {
+  int32_t groupID = args[0];
+  if(RPCContext::ThreadLocal()->group2client.count(groupID)==0){
+    LOG(FATAL)<<"Unknown group ID ~ "<<groupID;
+  }
+  const auto& gClientIDs = RPCContext::ThreadLocal()->group2client[groupID];
+  for(const auto& id:gClientIDs){
+  RPCContext::ThreadLocal()->sender->Finalize(id);
+  }
+});
+
 DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCFinalizeReceiver")
 .set_body([] (DGLArgs args, DGLRetValue* rv) {
   RPCContext::ThreadLocal()->receiver->Finalize();
+});
+
+DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCFinalizeReceiverWithID")
+.set_body([] (DGLArgs args, DGLRetValue* rv) {
+  int32_t groupID = args[0];
+  if(RPCContext::ThreadLocal()->recv_group2client.count(groupID)==0){
+    LOG(FATAL)<<"Unknown group ID for receiver ~ "<<groupID;
+  }
+  RPCContext::ThreadLocal()->receiver->Finalize(0);
+  RPCContext::ThreadLocal()->receiver->Finalize(1);
+  /*
+  const auto& gClientIDs = RPCContext::ThreadLocal()->recv_group2client[groupID];
+  for(const auto& id:gClientIDs){
+    std::cout<<"---------- finalizing id: "<<id<<std::endl;
+    RPCContext::ThreadLocal()->receiver->Finalize(id);
+  }
+  */
 });
 
 DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCReceiverWait")
@@ -135,6 +171,11 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCReceiverWait")
   }
 });
 
+DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCReceiverIfClientsReady")
+.set_body([] (DGLArgs args, DGLRetValue* rv) {
+  *rv = RPCContext::ThreadLocal()->receiver->ClientsReady();
+});
+
 DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCAddReceiver")
 .set_body([] (DGLArgs args, DGLRetValue* rv) {
   std::string ip = args[0];
@@ -150,10 +191,32 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCAddReceiver")
 });
 
 DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCSenderConnect")
+    .set_body([](DGLArgs args, DGLRetValue *rv) {
+      int recv_id = args[0];
+      if (RPCContext::ThreadLocal()->sender->Connect(recv_id) == false) {
+        LOG(FATAL) << "Sender connection failed.";
+      }
+    });
+
+DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCSenderConnect_orig")
+    .set_body([](DGLArgs args, DGLRetValue *rv) {
+      if (RPCContext::ThreadLocal()->sender->Connect() == false) {
+        LOG(FATAL) << "Sender connection failed.";
+      }
+    });
+
+DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCSetClientID")
 .set_body([] (DGLArgs args, DGLRetValue* rv) {
-  if (RPCContext::ThreadLocal()->sender->Connect() == false) {
-    LOG(FATAL) << "Sender connection failed.";
-  }
+  const int32_t groupID = args[0];
+  const int32_t gClientID = args[1];
+  RPCContext::ThreadLocal()->group2client[groupID].push_back(gClientID);
+});
+
+DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCSetRecvClientID")
+.set_body([] (DGLArgs args, DGLRetValue* rv) {
+  const int32_t groupID = args[0];
+  const int32_t gClientID = args[1];
+  RPCContext::ThreadLocal()->recv_group2client[groupID].push_back(gClientID);
 });
 
 DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCSetRank")
@@ -165,6 +228,17 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCSetRank")
 DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCGetRank")
 .set_body([] (DGLArgs args, DGLRetValue* rv) {
   *rv = RPCContext::ThreadLocal()->rank;
+});
+
+DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCSetGroupId")
+.set_body([] (DGLArgs args, DGLRetValue* rv) {
+  const int32_t group_id = args[0];
+  RPCContext::ThreadLocal()->group_id = group_id;
+});
+
+DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCGetGroupId")
+.set_body([] (DGLArgs args, DGLRetValue* rv) {
+  *rv = RPCContext::ThreadLocal()->group_id;
 });
 
 DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCSetNumServer")
@@ -181,12 +255,16 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCGetNumServer")
 DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCSetNumClient")
 .set_body([] (DGLArgs args, DGLRetValue* rv) {
   const int32_t num_clients = args[0];
-  *rv = RPCContext::ThreadLocal()->num_clients = num_clients;
+  const int32_t group_id = args[1];
+  std::lock_guard<std::mutex> lk(RPCContext::ThreadLocal()->mtx_);
+  *rv = RPCContext::ThreadLocal()->num_clients[group_id] = num_clients;
 });
 
 DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCGetNumClient")
 .set_body([] (DGLArgs args, DGLRetValue* rv) {
-  *rv = RPCContext::ThreadLocal()->num_clients;
+  const int32_t group_id = args[0];
+  std::lock_guard<std::mutex> lk(RPCContext::ThreadLocal()->mtx_);
+  *rv = RPCContext::ThreadLocal()->num_clients[group_id];
 });
 
 DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCSetNumServerPerMachine")
@@ -218,13 +296,17 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCSetMsgSeq")
 
 DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCGetBarrierCount")
 .set_body([] (DGLArgs args, DGLRetValue* rv) {
-  *rv = RPCContext::ThreadLocal()->barrier_count;
+  std::lock_guard<std::mutex> lk(RPCContext::ThreadLocal()->mtx_);
+  const int32_t group_id = args[0];
+  *rv = RPCContext::ThreadLocal()->barrier_count[group_id];
 });
 
 DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCSetBarrierCount")
 .set_body([] (DGLArgs args, DGLRetValue* rv) {
   const int32_t count = args[0];
-  RPCContext::ThreadLocal()->barrier_count = count;
+  const int32_t group_id = args[1];
+  std::lock_guard<std::mutex> lk(RPCContext::ThreadLocal()->mtx_);
+  RPCContext::ThreadLocal()->barrier_count[group_id] = count;
 });
 
 DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCGetMachineID")

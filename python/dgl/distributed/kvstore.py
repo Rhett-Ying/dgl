@@ -10,6 +10,7 @@ from .standalone_kvstore import KVClient as SA_KVClient
 from .. import backend as F
 from .. import utils
 from .._ffi.ndarray import empty_shared_mem
+import time
 
 ############################ Register KVStore Requsts and Responses ###############################
 
@@ -45,15 +46,17 @@ class PullRequest(rpc.Request):
     id_tensor : tensor
         a vector storing the data ID
     """
-    def __init__(self, name, id_tensor):
+    def __init__(self, name, id_tensor, client_id, group_id):
         self.name = name
         self.id_tensor = id_tensor
+        self.client_id = client_id
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self.name, self.id_tensor
+        return self.name, self.id_tensor, self.client_id, self.group_id
 
     def __setstate__(self, state):
-        self.name, self.id_tensor = state
+        self.name, self.id_tensor, self.client_id, self.group_id = state
 
     def process_request(self, server_state):
         kv_store = server_state.kv_store
@@ -82,16 +85,18 @@ class PushRequest(rpc.Request):
     data_tensor : tensor
         a tensor with the same row size of data ID
     """
-    def __init__(self, name, id_tensor, data_tensor):
+    def __init__(self, name, id_tensor, data_tensor, client_id, group_id):
         self.name = name
         self.id_tensor = id_tensor
         self.data_tensor = data_tensor
+        self.client_id = client_id
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self.name, self.id_tensor, self.data_tensor
+        return self.name, self.id_tensor, self.data_tensor, self.client_id, self.group_id
 
     def __setstate__(self, state):
-        self.name, self.id_tensor, self.data_tensor = state
+        self.name, self.id_tensor, self.data_tensor, self.client_id, self.group_id = state
 
     def process_request(self, server_state):
         kv_store = server_state.kv_store
@@ -141,18 +146,20 @@ class InitDataRequest(rpc.Request):
     init_func : function
         UDF init function.
     """
-    def __init__(self, name, shape, dtype, policy_str, init_func):
+    def __init__(self, name, shape, dtype, policy_str, init_func, client_id, group_id):
         self.name = name
         self.shape = shape
         self.dtype = dtype
         self.policy_str = policy_str
         self.init_func = init_func
+        self.client_id = client_id
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self.name, self.shape, self.dtype, self.policy_str, self.init_func
+        return self.name, self.shape, self.dtype, self.policy_str, self.init_func, self.client_id, self.group_id
 
     def __setstate__(self, state):
-        self.name, self.shape, self.dtype, self.policy_str, self.init_func = state
+        self.name, self.shape, self.dtype, self.policy_str, self.init_func, self.client_id, self.group_id = state
 
     def process_request(self, server_state):
         kv_store = server_state.kv_store
@@ -204,18 +211,20 @@ class BarrierRequest(rpc.Request):
     role : string
         client role
     """
-    def __init__(self, role):
+    def __init__(self, role, group_id):
         self.role = role
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self.role
+        return self.role, self.group_id
 
     def __setstate__(self, state):
-        self.role = state
+        self.role, self.group_id = state
 
     def process_request(self, server_state):
         kv_store = server_state.kv_store
-        role = server_state.roles
+        assert self.group_id in server_state.roles
+        role = server_state.roles[self.group_id]
         count = kv_store.barrier_count[self.role]
         kv_store.barrier_count[self.role] = count + 1
         if kv_store.barrier_count[self.role] == len(role[self.role]):
@@ -255,15 +264,17 @@ class RegisterPullHandlerRequest(rpc.Request):
     pull_func : func
         UDF pull handler
     """
-    def __init__(self, name, pull_func):
+    def __init__(self, name, pull_func, client_id, group_id):
         self.name = name
         self.pull_func = pull_func
+        self.client_id = client_id
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self.name, self.pull_func
+        return self.name, self.pull_func, self.client_id, self.group_id
 
     def __setstate__(self, state):
-        self.name, self.pull_func = state
+        self.name, self.pull_func, self.client_id, self.group_id = state
 
     def process_request(self, server_state):
         kv_store = server_state.kv_store
@@ -300,15 +311,17 @@ class RegisterPushHandlerRequest(rpc.Request):
     push_func : func
         UDF push handler
     """
-    def __init__(self, name, push_func):
+    def __init__(self, name, push_func, client_id, group_id):
         self.name = name
         self.push_func = push_func
+        self.client_id = client_id
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self.name, self.push_func
+        return self.name, self.push_func, self.client_id, self.group_id
 
     def __setstate__(self, state):
-        self.name, self.push_func = state
+        self.name, self.push_func, self.client_id, self.group_id = state
 
     def process_request(self, server_state):
         kv_store = server_state.kv_store
@@ -348,14 +361,16 @@ class GetSharedDataRequest(rpc.Request):
     msg : string
         string message
     """
-    def __init__(self, msg):
+    def __init__(self, msg, client_id, group_id):
         self.msg = msg
+        self.client_id = client_id
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self.msg
+        return self.msg, self.client_id, self.group_id
 
     def __setstate__(self, state):
-        self.msg = state
+        self.msg, self.client_id, self.group_id = state
 
     def process_request(self, server_state):
         assert self.msg == GET_SHARED_MSG
@@ -399,14 +414,16 @@ class GetPartShapeRequest(rpc.Request):
     name : str
         data name
     """
-    def __init__(self, name):
+    def __init__(self, name, client_id, group_id):
         self.name = name
+        self.client_id = client_id
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self.name
+        return self.name, self.client_id, self.group_id
 
     def __setstate__(self, state):
-        self.name = state
+        self.name, self.client_id, self.group_id = state
 
     def process_request(self, server_state):
         kv_store = server_state.kv_store
@@ -451,21 +468,23 @@ class SendMetaToBackupRequest(rpc.Request):
     push_handler : callable
         The callback function when data is pushed to kvstore.
     """
-    def __init__(self, name, dtype, shape, policy_str, pull_handler, push_handler):
+    def __init__(self, name, dtype, shape, policy_str, pull_handler, push_handler, client_id, group_id):
         self.name = name
         self.dtype = dtype
         self.shape = shape
         self.policy_str = policy_str
         self.pull_handler = pull_handler
         self.push_handler = push_handler
+        self.client_id = client_id
+        self.group_id = group_id
 
     def __getstate__(self):
         return self.name, self.dtype, self.shape, self.policy_str, self.pull_handler, \
-                self.push_handler
+                self.push_handler, self.client_id, self.group_id
 
     def __setstate__(self, state):
         self.name, self.dtype, self.shape, self.policy_str, self.pull_handler, \
-                self.push_handler = state
+                self.push_handler, self.client_id, self.group_id = state
 
     def process_request(self, server_state):
         kv_store = server_state.kv_store
@@ -510,14 +529,16 @@ class DeleteDataRequest(rpc.Request):
     name : str
         data name
     """
-    def __init__(self, name):
+    def __init__(self, name, client_id, group_id):
         self.name = name
+        self.client_id = client_id
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self.name
+        return self.name, self.client_id, self.group_id
 
     def __setstate__(self, state):
-        self.name = state
+        self.name, self.client_id, self.group_id = state
 
     def process_request(self, server_state):
         kv_store = server_state.kv_store
@@ -894,6 +915,7 @@ class KVClient(object):
         self._machine_count = int(self._server_count / self._group_count)
         self._client_id = rpc.get_rank()
         self._machine_id = rpc.get_machine_id()
+        self._group_id = rpc.get_group_id()
         self._part_id = self._machine_id
         self._main_server_id = self._machine_id * self._group_count
         # push and pull handler
@@ -911,6 +933,11 @@ class KVClient(object):
     def client_id(self):
         """Get client ID"""
         return self._client_id
+
+    @property
+    def group_id(self):
+        """Get group ID"""
+        return self._group_id
 
     @property
     def role(self):
@@ -932,9 +959,11 @@ class KVClient(object):
 
         This API will be blocked untill all the clients invoke this API.
         """
-        request = BarrierRequest(self._role)
+        request = BarrierRequest(self._role, self._group_id)
         rpc.send_request(0, request)
+        print("~~~~~~~~~ kvstore barrier request is sent............")
         response = rpc.recv_response()
+        print("~~~~~~~~~ kvstore barrier response is recvd............")
         assert response.msg == BARRIER_MSG
 
     def register_push_handler(self, name, func):
@@ -959,13 +988,15 @@ class KVClient(object):
             The function to be called.
         """
         self.barrier()
-        request = RegisterPushHandlerRequest(name, func)
+        request = RegisterPushHandlerRequest(name, func, rpc.get_rank(), rpc.get_group_id())
         # send request to all the server nodes
         for server_id in range(self._server_count):
             rpc.send_request(server_id, request)
+            print("~~~~~~~~~~ KVCLIENT send request_PUSH: name:{}".format(request.name))
         # recv response from all the server nodes
         for _ in range(self._server_count):
             response = rpc.recv_response()
+            print("~~~~~~~~~~ KVCLIENT recv response_PUSH: name:{}".format(request.name))
             assert response.msg == REGISTER_PUSH_MSG
         self._push_handlers[name] = func
         self.barrier()
@@ -991,7 +1022,7 @@ class KVClient(object):
             The function to be called.
         """
         self.barrier()
-        request = RegisterPullHandlerRequest(name, func)
+        request = RegisterPullHandlerRequest(name, func, rpc.get_rank(), rpc.get_group_id())
         # send request to all the server nodes
         for server_id in range(self._server_count):
             rpc.send_request(server_id, request)
@@ -1021,12 +1052,12 @@ class KVClient(object):
         is_gdata : bool
             Whether the created tensor is a ndata/edata or not.
         """
+        print("------------- KVClient init_data ~ 1 on rank~{}, group~{}...............".format(rpc.get_rank(), rpc.get_group_id()))
         assert len(name) > 0, 'name cannot be empty.'
         assert len(shape) > 0, 'shape cannot be empty'
         assert name not in self._data_name_list, 'data name: %s already exists.' % name
         self.barrier()
         shape = list(shape)
-
         # Send request to the servers to initialize data.
         # The servers may handle the duplicated initializations.
         part_shape = shape.copy()
@@ -1035,15 +1066,19 @@ class KVClient(object):
                                   tuple(part_shape),
                                   F.reverse_data_type_dict[dtype],
                                   part_policy.policy_str,
-                                  init_func)
+                                  init_func, rpc.get_rank(), rpc.get_group_id())
         # The request is sent to the servers in one group, which are on the same machine.
         for n in range(self._group_count):
             server_id = part_policy.part_id * self._group_count + n
             rpc.send_request(server_id, request)
+        print("------------- KVClient init_data ~ 2 on rank~{}, group~{}...............".format(rpc.get_rank(), rpc.get_group_id()))
         for _ in range(self._group_count):
             response = rpc.recv_response()
+            print("!!!!!!!!! res.msg:{}, rank~{}, group~{}".format(response.msg,rpc.get_rank(), rpc.get_group_id()))
             assert response.msg == INIT_MSG
 
+        print("------------- KVClient init_data ~ 3 on rank~{}, group~{}...............".format(rpc.get_rank(), rpc.get_group_id()))
+        #time.sleep(1000)
         self.barrier()
         # Create local shared-data
         local_shape = shape.copy()
@@ -1071,7 +1106,7 @@ class KVClient(object):
         request = SendMetaToBackupRequest(name, F.reverse_data_type_dict[dtype],
                                           part_shape, part_policy.policy_str,
                                           self._pull_handlers[name],
-                                          self._push_handlers[name])
+                                          self._push_handlers[name], rpc.get_rank(), rpc.get_group_id())
         # send request to all the backup server nodes
         for i in range(self._group_count-1):
             server_id = self._machine_id * self._group_count + i + 1
@@ -1096,7 +1131,7 @@ class KVClient(object):
         part_policy = self._part_policy[name]
 
         # send request to every server nodes
-        request = DeleteDataRequest(name)
+        request = DeleteDataRequest(name, rpc.get_rank(), rpc.get_group_id())
         for n in range(self._group_count):
             server_id = part_policy.part_id * self._group_count + n
             rpc.send_request(server_id, request)
@@ -1134,7 +1169,7 @@ class KVClient(object):
 
         # Get shared data from server side
         self.barrier()
-        request = GetSharedDataRequest(GET_SHARED_MSG)
+        request = GetSharedDataRequest(GET_SHARED_MSG, rpc.get_rank(), rpc.get_group_id())
         rpc.send_request(self._main_server_id, request)
         response = rpc.recv_response()
         for name, meta in response.meta.items():
@@ -1153,7 +1188,7 @@ class KVClient(object):
                 shape, _, _ = meta
                 data_shape = list(shape)
                 data_shape[0] = 0
-                request = GetPartShapeRequest(name)
+                request = GetPartShapeRequest(name, rpc.get_rank(), rpc.get_group_id())
                 # send request to all main server nodes
                 for machine_id in range(self._machine_count):
                     server_id = machine_id * self._group_count
@@ -1168,7 +1203,7 @@ class KVClient(object):
             shape, dtype, policy_str = meta
             request = SendMetaToBackupRequest(name, dtype, shape, policy_str,
                                               self._pull_handlers[name],
-                                              self._push_handlers[name])
+                                              self._push_handlers[name], rpc.get_rank(), rpc.get_group_id())
             # send request to all the backup server nodes
             for i in range(self._group_count-1):
                 server_id = self._machine_id * self._group_count + i + 1

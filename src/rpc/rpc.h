@@ -35,6 +35,9 @@ struct RPCContext {
    * is a server and this is equal to server ID.
    */
   int32_t rank = -1;
+  int32_t group_id = -1;
+  std::unordered_map<int32_t, std::vector<int32_t>> group2client;
+  std::unordered_map<int32_t, std::vector<int32_t>> recv_group2client;
 
   /*!
    * \brief Cuurent machine ID
@@ -59,12 +62,15 @@ struct RPCContext {
   /*!
    * \brief Total number of client.
    */
-  int32_t num_clients = 0;
+  //int32_t num_clients = 0;
+  std::unordered_map<int32_t, int32_t> num_clients;
 
   /*!
    * \brief Current barrier count
    */
-  int32_t barrier_count = 0;
+  //int32_t barrier_count = 0;
+  std::unordered_map<int, int> barrier_count;
+  std::mutex mtx_;
 
   /*!
    * \brief Total number of server per machine.
@@ -101,10 +107,13 @@ struct RPCContext {
   static void Reset() {
     auto* t = ThreadLocal();
     t->rank = -1;
+    t->group_id = -1;
     t->machine_id = -1;
     t->num_machines = 0;
-    t->num_clients = 0;
-    t->barrier_count = 0;
+    //t->num_clients = 0;
+    //t->barrier_count = 0;
+    t->num_clients.clear();
+    t->barrier_count.clear();
     t->num_servers_per_machine = 0;
     t->sender = std::shared_ptr<network::Sender>();
     t->receiver = std::shared_ptr<network::Receiver>();

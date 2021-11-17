@@ -40,11 +40,12 @@ class ServerState:
         Graph Partition book
     """
 
-    def __init__(self, kv_store, local_g, partition_book):
+    def __init__(self, kv_store, local_g, partition_book, keep_alive=False):
         self._kv_store = kv_store
         self._graph = local_g
         self.partition_book = partition_book
         self._roles = {}
+        self._keep_alive = keep_alive
 
     @property
     def roles(self):
@@ -64,6 +65,11 @@ class ServerState:
     def graph(self):
         """Get graph data."""
         return self._graph
+
+    @property
+    def keep_alive(self):
+        """Get keep alive flag."""
+        return self._keep_alive
 
     @graph.setter
     def graph(self, graph):

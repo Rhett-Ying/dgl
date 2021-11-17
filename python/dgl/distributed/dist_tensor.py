@@ -7,6 +7,7 @@ from .kvstore import get_kvstore
 from .role import get_role
 from .. import utils
 from .. import backend as F
+import time
 
 def _default_init_data(shape, dtype):
     return F.zeros(shape, dtype, F.cpu())
@@ -157,6 +158,7 @@ class DistTensor:
             dtype1, shape1, _ = self.kvstore.get_data_meta(self._name)
             assert dtype == dtype1, 'The dtype does not match with the existing tensor'
             assert shape == shape1, 'The shape does not match with the existing tensor'
+        print("------------------ DistTensor init done ...............")
 
     def __del__(self):
         initialized = os.environ.get('DGL_DIST_MODE', 'standalone') == 'standalone' \

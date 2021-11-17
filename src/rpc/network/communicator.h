@@ -56,6 +56,7 @@ class Sender {
    * Connect() is not thread-safe and only one thread can invoke this API.
    */
   virtual bool Connect() = 0;
+  virtual bool Connect(int)=0;
 
   /*!
    * \brief Send data to specified Receiver.
@@ -78,6 +79,7 @@ class Sender {
    * Finalize() is not thread-safe and only one thread can invoke this API.
    */
   virtual void Finalize() = 0;
+  virtual void Finalize(int) = 0;
 
   /*!
    * \brief Communicator type: 'socket', 'mpi', etc.
@@ -164,11 +166,16 @@ class Receiver {
    * Finalize() is not thread-safe and only one thread can invoke this API.
    */
   virtual void Finalize() = 0;
-
+virtual void Finalize(int) = 0;
   /*!
    * \brief Communicator type: 'socket', 'mpi', etc
    */
   virtual std::string Type() const = 0;
+virtual int Type_() const = 0;
+  /*!
+   * \brief check if clients ready
+   */
+  virtual bool ClientsReady() const = 0;
 
  protected:
   /*!

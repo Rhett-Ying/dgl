@@ -4,6 +4,7 @@ import os
 import socket
 import atexit
 import logging
+import time
 
 from . import rpc
 from .constants import MAX_QUEUE_SIZE
@@ -102,7 +103,7 @@ def get_local_usable_addr(probe_addr):
     return ip_addr + ':' + str(port)
 
 
-def connect_to_server(ip_config, num_servers, max_queue_size=MAX_QUEUE_SIZE, net_type='socket'):
+def connect_to_server(ip_config, num_servers, max_queue_size=MAX_QUEUE_SIZE, net_type='socket', group_id=0):
     """Connect this client to server.
 
     Parameters
@@ -156,35 +157,46 @@ def connect_to_server(ip_config, num_servers, max_queue_size=MAX_QUEUE_SIZE, net
     machine_id = get_local_machine_id(server_namebook)
     rpc.set_machine_id(machine_id)
     rpc.create_sender(max_queue_size, net_type)
-    rpc.create_receiver(max_queue_size, net_type)
+    rpc.create_receiver(max_queue_size, net_type, 0)
+    
+    print("---------- client start to connect server.......... group_id~{}".format(group_id))
     # Get connected with all server nodes
     for server_id, addr in server_namebook.items():
         server_ip = addr[1]
         server_port = addr[2]
         rpc.add_receiver_addr(server_ip, server_port, server_id)
-    rpc.sender_connect()
+        rpc.sender_connect(server_id)
+        print("----- Sender is connected to server: server_id~{}, server_ip~{}, server_port~{}".format(server_id, server_ip, server_port))
+    ########rpc.sender_connect_orig()
     # Get local usable IP address and port
     ip_addr = get_local_usable_addr(server_ip)
     client_ip, client_port = ip_addr.split(':')
-    # Register client on server
-    register_req = rpc.ClientRegisterRequest(ip_addr)
-    for server_id in range(num_servers):
-        rpc.send_request(server_id, register_req)
     # wait server connect back
     rpc.receiver_wait(client_ip, client_port, num_servers)
+
+    # Register client on server
+    register_req = rpc.ClientRegisterRequest(ip_addr, group_id)
+    for server_id in range(num_servers):
+        rpc.send_request(server_id, register_req)
+        print("--------- client send_request from {}".format(register_req.ip_addr))
+    
+    
     # recv client ID from server
     res = rpc.recv_response()
     rpc.set_rank(res.client_id)
+    rpc.set_group_id(group_id)
     print("Machine (%d) client (%d) connect to server successfuly!" \
         % (machine_id, rpc.get_rank()))
     # get total number of client
-    get_client_num_req = rpc.GetNumberClientsRequest(rpc.get_rank())
+    get_client_num_req = rpc.GetNumberClientsRequest(rpc.get_rank(), rpc.get_group_id())
     rpc.send_request(0, get_client_num_req)
     res = rpc.recv_response()
-    rpc.set_num_client(res.num_client)
+    print("-------- RPC CLIENT: get num_client: {}".format(res.num_client))
+    rpc.set_num_client(res.num_client, group_id)    
     from .dist_context import exit_client, set_initialized
     atexit.register(exit_client)
     set_initialized()
+    print("------ CLIENT connect_to_server is done.")
 
 def shutdown_servers():
     """Issue commands to remote servers to shut them down.
@@ -194,6 +206,7 @@ def shutdown_servers():
     ConnectionError : If anything wrong with the connection.
     """
     if rpc.get_rank() == 0:  # Only client_0 issue this command
-        req = rpc.ShutDownRequest(rpc.get_rank())
+        req = rpc.ShutDownRequest(rpc.get_rank(), rpc.get_group_id())
         for server_id in range(rpc.get_num_server()):
             rpc.send_request(server_id, req)
+        print("****************** ShutDownRequest is sent")

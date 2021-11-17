@@ -11,6 +11,7 @@ from ..convert import graph, heterograph
 from ..base import NID, EID
 from ..utils import toindex
 from .. import backend as F
+from . import rpc
 
 __all__ = ['sample_neighbors', 'in_subgraph', 'find_edges']
 
@@ -199,15 +200,17 @@ class SamplingRequestEtype(Request):
 class EdgesRequest(Request):
     """Edges Request"""
 
-    def __init__(self, edge_ids, order_id):
+    def __init__(self, edge_ids, order_id, client_id, group_id):
         self.edge_ids = edge_ids
         self.order_id = order_id
+        self.client_id = client_id
+        self.group_id = group_id
 
     def __setstate__(self, state):
-        self.edge_ids, self.order_id = state
+        self.edge_ids, self.order_id, self.client_id, self.group_id = state
 
     def __getstate__(self):
-        return self.edge_ids, self.order_id
+        return self.edge_ids, self.order_id, self.client_id, self.group_id
 
     def process_request(self, server_state):
         local_g = server_state.graph
@@ -667,7 +670,7 @@ def find_edges(g, edge_ids):
         The destination node ID array.
     """
     def issue_remote_req(edge_ids, order_id):
-        return EdgesRequest(edge_ids, order_id)
+        return EdgesRequest(edge_ids, order_id, rpc.get_rank(), rpc.get_group_id())
     def local_access(local_g, partition_book, edge_ids):
         return _find_edges(local_g, partition_book, edge_ids)
     return _distributed_edge_access(g, edge_ids, issue_remote_req, local_access)

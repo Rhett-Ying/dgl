@@ -67,7 +67,7 @@ STATUS MessageQueue::Remove(Message* msg, bool is_blocking) {
   if (finished_producers_.size() >= num_producers_ && queue_.empty()) {
     return QUEUE_CLOSE;
   }
-
+//std::cout<<"~~~~00 queue_.size(): "<< queue_.size()<<", exit_flag_:"<<exit_flag_<<std::endl;
   Message old_msg = queue_.front();
   queue_.pop();
   msg->data = old_msg.data;
@@ -76,7 +76,7 @@ STATUS MessageQueue::Remove(Message* msg, bool is_blocking) {
   msg->deallocator = old_msg.deallocator;
   free_size_ += old_msg.size;
   cond_not_full_.notify_one();
-
+//std::cout<<"~~~~ queue_.size(): "<< queue_.size()<<", exit_flag_:"<<exit_flag_<<std::endl;
   return REMOVE_SUCCESS;
 }
 

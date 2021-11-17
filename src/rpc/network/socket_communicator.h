@@ -11,12 +11,15 @@
 #include <string>
 #include <unordered_map>
 #include <memory>
+#include <atomic>
+#include <mutex>
 
 #include "../../runtime/semaphore_wrapper.h"
 #include "communicator.h"
 #include "msg_queue.h"
 #include "tcp_socket.h"
 #include "common.h"
+#include "socket_pool.h"
 
 namespace dgl {
 namespace network {
@@ -45,59 +48,58 @@ class SocketSender : public Sender {
    * \param queue_size size of message queue 
    * \param max_thread_count size of thread pool. 0 for no limit
    */
-  SocketSender(int64_t queue_size, int max_thread_count)
-    : Sender(queue_size, max_thread_count) {}
+   SocketSender(int64_t queue_size, int max_thread_count);
 
-  /*!
-   * \brief Add receiver's address and ID to the sender's namebook
-   * \param addr Networking address, e.g., 'socket://127.0.0.1:50091', 'mpi://0'
-   * \param id receiver's ID
-   *
-   * AddReceiver() is not thread-safe and only one thread can invoke this API.
-   */
-  void AddReceiver(const char* addr, int recv_id);
+   /*!
+    * \brief Add receiver's address and ID to the sender's namebook
+    * \param addr Networking address, e.g., 'socket://127.0.0.1:50091',
+    * 'mpi://0' \param id receiver's ID
+    *
+    * AddReceiver() is not thread-safe and only one thread can invoke this API.
+    */
+   void AddReceiver(const char *addr, int recv_id);
 
-  /*!
-   * \brief Connect with all the Receivers
-   * \return True for success and False for fail
-   *
-   * Connect() is not thread-safe and only one thread can invoke this API.
-   */
-  bool Connect();
+   /*!
+    * \brief Connect with all the Receivers
+    * \return True for success and False for fail
+    *
+    * Connect() is not thread-safe and only one thread can invoke this API.
+    */
+   bool Connect();
+   bool Connect(int);
 
-  /*!
-   * \brief Send data to specified Receiver. Actually pushing message to message queue.
-   * \param msg data message
-   * \param recv_id receiver's ID
-   * \return Status code
-   *
-   * (1) The send is non-blocking. There is no guarantee that the message has been 
-   *     physically sent out when the function returns.
-   * (2) The communicator will assume the responsibility of the given message.
-   * (3) The API is multi-thread safe.
-   * (4) Messages sent to the same receiver are guaranteed to be received in the same order. 
-   *     There is no guarantee for messages sent to different receivers.
-   */
-  STATUS Send(Message msg, int recv_id);
+   /*!
+    * \brief Send data to specified Receiver. Actually pushing message to
+    * message queue. \param msg data message \param recv_id receiver's ID
+    * \return Status code
+    *
+    * (1) The send is non-blocking. There is no guarantee that the message has
+    * been physically sent out when the function returns. (2) The communicator
+    * will assume the responsibility of the given message. (3) The API is
+    * multi-thread safe. (4) Messages sent to the same receiver are guaranteed
+    * to be received in the same order. There is no guarantee for messages sent
+    * to different receivers.
+    */
+   STATUS Send(Message msg, int recv_id);
 
-  /*!
-   * \brief Finalize SocketSender
-   *
-   * Finalize() is not thread-safe and only one thread can invoke this API.
-   */
-  void Finalize();
+   /*!
+    * \brief Finalize SocketSender
+    *
+    * Finalize() is not thread-safe and only one thread can invoke this API.
+    */
+   void Finalize();
 
-  /*!
-   * \brief Communicator type: 'socket'
-   */
-  inline std::string Type() const { return std::string("socket"); }
+  void Finalize(int);
+   /*!
+    * \brief Communicator type: 'socket'
+    */
+   inline std::string Type() const { return std::string("socket"); }
 
  private:
   /*!
    * \brief socket for each connection of receiver
    */ 
-  std::vector<std::unordered_map<int /* receiver ID */,
-    std::shared_ptr<TCPSocket>>> sockets_;
+  std::vector<std::unordered_map<int,std::shared_ptr<TCPSocket>>> sockets_;
 
   /*!
    * \brief receivers' address
@@ -122,10 +124,10 @@ class SocketSender : public Sender {
    * Note that, the SendLoop will finish its loop-job and exit thread
    * when the main thread invokes Signal() API on the message queue.
    */
-  static void SendLoop(
-    std::unordered_map<int /* Receiver (virtual) ID */,
-      std::shared_ptr<TCPSocket>> sockets,
-    std::shared_ptr<MessageQueue> queue);
+   void SendCore(Message msg, TCPSocket* socket);
+    void SendLoop(const int);
+    std::mutex _mtx;
+    std::atomic_bool _stop{false};
 };
 
 /*!
@@ -140,8 +142,8 @@ class SocketReceiver : public Receiver {
    * \param queue_size size of message queue.
    * \param max_thread_count size of thread pool. 0 for no limit
    */
-  SocketReceiver(int64_t queue_size, int max_thread_count)
-    : Receiver(queue_size, max_thread_count) {}
+  SocketReceiver(int64_t queue_size, int max_thread_count, int type = 0)
+    : Receiver(queue_size, max_thread_count), type_(type) {}
 
   /*!
    * \brief Wait for all the Senders to connect
@@ -185,13 +187,19 @@ class SocketReceiver : public Receiver {
    * Finalize() is not thread-safe and only one thread can invoke this API.
    */
   void Finalize();
+  void Finalize(int);
 
   /*!
    * \brief Communicator type: 'socket'
    */
   inline std::string Type() const { return std::string("socket"); }
 
- private:
+  /*!
+   * \brief check if clients ready
+   */
+  inline bool ClientsReady() const override { return clients_ready_; }
+int Type_() const override{return type_;}
+private:
   struct RecvContext {
     int64_t data_size = -1;
     int64_t received_bytes = 0;
@@ -224,7 +232,8 @@ class SocketReceiver : public Receiver {
    * \brief Independent thead
    */ 
   std::vector<std::shared_ptr<std::thread>> threads_;
-
+  std::vector<SocketPool> socket_pool_;
+  std::unordered_map<int, std::unique_ptr<RecvContext>> recv_contexts_;
   /*!
    * \brief queue_sem_ semphore to indicate number of messages in multiple
    * message queues to prevent busy wait of Recv
@@ -239,12 +248,13 @@ class SocketReceiver : public Receiver {
    * Note that, the RecvLoop will finish its loop-job and exit thread
    * when the main thread invokes Signal() API on the message queue.
    */ 
-  static void RecvLoop(
-    std::unordered_map<int /* Sender (virtual) ID */,
-      std::shared_ptr<TCPSocket>> sockets,
-    std::unordered_map<int /* Sender (virtual) ID */,
-      std::shared_ptr<MessageQueue>> queues,
-    runtime::Semaphore *queue_sem);
+  void RecvLoop(const int);
+
+  std::atomic<bool> stop_accept_{false};
+  int32_t curr_num_sender_{0x0};
+  std::atomic<bool> clients_ready_{false};
+  std::mutex mtx_;
+  int type_;
 };
 
 }  // namespace network

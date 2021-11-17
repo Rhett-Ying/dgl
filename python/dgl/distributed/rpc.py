@@ -10,10 +10,11 @@ from .._ffi.object import register_object, ObjectBase
 from .._ffi.function import _init_api
 from ..base import DGLError
 from .. import backend as F
+from .constants import SERVER_EXIT, SERVER_KEEP_ALIVE
 
 __all__ = ['set_rank', 'get_rank', 'Request', 'Response', 'register_service', \
 'create_sender', 'create_receiver', 'finalize_sender', 'finalize_receiver', \
-'receiver_wait', 'add_receiver_addr', 'sender_connect', 'read_ip_config', \
+'receiver_wait', 'add_receiver_addr', 'sender_connect', 'sender_connect_orig', 'read_ip_config', \
 'get_num_machines', 'set_num_machines', 'get_machine_id', 'set_machine_id', \
 'send_request', 'recv_request', 'send_response', 'recv_response', 'remote_call', \
 'send_request_to_machine', 'remote_call_to_machine', 'fast_pull', \
@@ -115,7 +116,7 @@ def create_sender(max_queue_size, net_type):
     max_thread_count = int(os.getenv('DGL_SOCKET_MAX_THREAD_COUNT', '0'))
     _CAPI_DGLRPCCreateSender(int(max_queue_size), net_type, max_thread_count)
 
-def create_receiver(max_queue_size, net_type):
+def create_receiver(max_queue_size, net_type, type_):
     """Create rpc receiver of this process.
 
     Parameters
@@ -126,12 +127,28 @@ def create_receiver(max_queue_size, net_type):
         Networking type. Current options are: 'socket'.
     """
     max_thread_count = int(os.getenv('DGL_SOCKET_MAX_THREAD_COUNT', '0'))
-    _CAPI_DGLRPCCreateReceiver(int(max_queue_size), net_type, max_thread_count)
+    _CAPI_DGLRPCCreateReceiver(int(max_queue_size), net_type, max_thread_count, type_)
 
 def finalize_sender():
     """Finalize rpc sender of this process.
     """
     _CAPI_DGLRPCFinalizeSender()
+
+def finalize_sender_with_id(group_id):
+    """Finalize rpc sender of this process.
+    """
+    _CAPI_DGLRPCFinalizeSenderWithID(group_id)
+
+def finalize_receiver_with_id(group_id):
+    """Finalize rpc receiver of this process.
+    """
+    _CAPI_DGLRPCFinalizeReceiverWithID(group_id)
+
+def record_group_client_id(group_id, g_client_id):
+    _CAPI_DGLRPCSetClientID(group_id, g_client_id)
+
+def record_recv_group_client_id(group_id, g_client_id):
+    _CAPI_DGLRPCSetRecvClientID(group_id, g_client_id)
 
 def finalize_receiver():
     """Finalize rpc receiver of this process.
@@ -154,6 +171,10 @@ def receiver_wait(ip_addr, port, num_senders):
     """
     _CAPI_DGLRPCReceiverWait(ip_addr, int(port), int(num_senders))
 
+def receiver_if_clients_ready():
+    """check if receiver clients ready"""
+    return _CAPI_DGLRPCReceiverIfClientsReady()
+
 def add_receiver_addr(ip_addr, port, recv_id):
     """Add Receiver's IP address to sender's namebook.
 
@@ -168,10 +189,15 @@ def add_receiver_addr(ip_addr, port, recv_id):
     """
     _CAPI_DGLRPCAddReceiver(ip_addr, int(port), int(recv_id))
 
-def sender_connect():
+def sender_connect(recv_id):
     """Connect to all the receivers.
     """
-    _CAPI_DGLRPCSenderConnect()
+    _CAPI_DGLRPCSenderConnect(recv_id)
+
+def sender_connect_orig():
+    """Connect to all the receivers.
+    """
+    _CAPI_DGLRPCSenderConnect_orig()
 
 def set_rank(rank):
     """Set the rank of this process.
@@ -198,6 +224,12 @@ def get_rank():
         Rank value
     """
     return _CAPI_DGLRPCGetRank()
+
+def get_group_id():
+    return _CAPI_DGLRPCGetGroupId()
+
+def set_group_id(group_id):
+    _CAPI_DGLRPCSetGroupId(int(group_id))
 
 def set_machine_id(machine_id):
     """Set current machine ID
@@ -249,15 +281,15 @@ def get_num_server():
     """
     return _CAPI_DGLRPCGetNumServer()
 
-def set_num_client(num_client):
+def set_num_client(num_client, group_id):
     """Set the total number of client.
     """
-    _CAPI_DGLRPCSetNumClient(int(num_client))
+    _CAPI_DGLRPCSetNumClient(int(num_client), int(group_id))
 
-def get_num_client():
+def get_num_client(group_id):
     """Get the total number of client.
     """
-    return _CAPI_DGLRPCGetNumClient()
+    return _CAPI_DGLRPCGetNumClient(int(group_id))
 
 def set_num_server_per_machine(num_server):
     """Set the total number of server per machine
@@ -628,7 +660,7 @@ def send_response(target, response):
     client_id = target
     server_id = get_rank()
     data, tensors = serialize_to_payload(response)
-    msg = RPCMessage(service_id, msg_seq, client_id, server_id, data, tensors)
+    msg = RPCMessage(service_id, msg_seq, client_id%100, server_id, data, tensors)
     send_rpc_message(msg, client_id)
 
 def recv_request(timeout=0):
@@ -656,7 +688,9 @@ def recv_request(timeout=0):
     ConnectionError if there is any problem with the connection.
     """
     # TODO(chao): handle timeout
+    #print("------------- start to recv request --------")
     msg = recv_rpc_message(timeout)
+    #print("------------- done to recv request --------")
     if msg is None:
         return None
     set_msg_seq(msg.msg_seq)
@@ -928,16 +962,19 @@ def recv_rpc_message(timeout=0):
 
 def client_barrier():
     """Barrier all client processes"""
-    req = ClientBarrierRequest()
+    req = ClientBarrierRequest(get_rank(), get_group_id())
     send_request(0, req)
     res = recv_response()
     assert res.msg == 'barrier'
 
-def finalize_server():
+def finalize_server(group_id):
     """Finalize resources of current server
     """
-    finalize_sender()
-    finalize_receiver()
+    print("------------- finalize_server  ~~~~~~~~ 1 ~~~~~")
+    finalize_sender_with_id(group_id)
+    print("------------- finalize_server  ~~~~~~~~ 2 ~~~~~")
+    #finalize_receiver_with_id(group_id)
+    print("------------- finalize_server  ~~~~~~~~ 3 ~~~~~")
     print("Server (%d) shutdown." % get_rank())
 
 def fast_pull(name, id_tensor, part_id, service_id,
@@ -1011,14 +1048,15 @@ class ClientRegisterRequest(Request):
     ip_addr : str
         client's IP address
     """
-    def __init__(self, ip_addr):
+    def __init__(self, ip_addr, group_id=0):
         self.ip_addr = ip_addr
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self.ip_addr
+        return self.ip_addr, self.group_id
 
     def __setstate__(self, state):
-        self.ip_addr = state
+        self.ip_addr, self.group_id = state
 
     def process_request(self, server_state):
         return None # do nothing
@@ -1053,19 +1091,21 @@ class ShutDownRequest(Request):
     client_id : int
         client's ID
     """
-    def __init__(self, client_id):
+    def __init__(self, client_id, group_id):
         self.client_id = client_id
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self.client_id
+        return self.client_id, self.group_id
 
     def __setstate__(self, state):
-        self.client_id = state
+        self.client_id, self.group_id = state
 
     def process_request(self, server_state):
+        print("********************** ShutDownRequest is handled.")
         assert self.client_id == 0
-        finalize_server()
-        return 'exit'
+        finalize_server(self.group_id)
+        return SERVER_KEEP_ALIVE if server_state.keep_alive else SERVER_EXIT
 
 GET_NUM_CLIENT = 22453
 
@@ -1094,17 +1134,18 @@ class GetNumberClientsRequest(Request):
     client_id : int
         client's ID
     """
-    def __init__(self, client_id):
+    def __init__(self, client_id, group_id):
         self.client_id = client_id
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self.client_id
+        return self.client_id, self.group_id
 
     def __setstate__(self, state):
-        self.client_id = state
+        self.client_id, self.group_id = state
 
     def process_request(self, server_state):
-        res = GetNumberClientsResponse(get_num_client())
+        res = GetNumberClientsResponse(get_num_client(self.group_id))
         return res
 
 CLIENT_BARRIER = 22454
@@ -1134,21 +1175,23 @@ class ClientBarrierRequest(Request):
     msg : str
         string msg
     """
-    def __init__(self, msg='barrier'):
+    def __init__(self, client_id, group_id, msg='barrier'):
         self.msg = msg
+        self.client_id = client_id
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self.msg
+        return self.msg, self.client_id, self.group_id
 
     def __setstate__(self, state):
-        self.msg = state
+        self.msg, self.client_id, self.group_id = state
 
     def process_request(self, server_state):
-        _CAPI_DGLRPCSetBarrierCount(_CAPI_DGLRPCGetBarrierCount()+1)
-        if _CAPI_DGLRPCGetBarrierCount() == get_num_client():
-            _CAPI_DGLRPCSetBarrierCount(0)
+        _CAPI_DGLRPCSetBarrierCount(_CAPI_DGLRPCGetBarrierCount(self.group_id)+1, self.group_id)
+        if _CAPI_DGLRPCGetBarrierCount(self.group_id) == get_num_client(self.group_id):
+            _CAPI_DGLRPCSetBarrierCount(0, self.group_id)
             res_list = []
-            for target_id in range(get_num_client()):
+            for target_id in range(get_num_client(self.group_id)):
                 res_list.append((target_id, ClientBarrierResponse()))
             return res_list
         return None

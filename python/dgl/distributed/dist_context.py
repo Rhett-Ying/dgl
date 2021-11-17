@@ -39,6 +39,8 @@ def _init_rpc(ip_config, num_servers, max_queue_size, net_type, role, num_thread
     try:
         utils.set_num_threads(num_threads)
         if os.environ.get('DGL_DIST_MODE', 'standalone') != 'standalone':
+            print("+++++++++++++++++++++++++++++++++")
+            raise RuntimeError("000000")
             connect_to_server(ip_config, num_servers, max_queue_size, net_type)
         init_role(role)
         init_kvstore(ip_config, num_servers, role)
@@ -174,7 +176,7 @@ class CustomPool:
 
 def initialize(ip_config, num_servers=1, num_workers=0,
                max_queue_size=MAX_QUEUE_SIZE, net_type='socket',
-               num_worker_threads=1):
+               num_worker_threads=1, group_id=0):
     """Initialize DGL's distributed module
 
     This function initializes DGL's distributed module. It acts differently in server
@@ -258,16 +260,19 @@ def initialize(ip_config, num_servers=1, num_workers=0,
         if not is_standalone:
             assert num_servers is not None and num_servers > 0, \
                 'The number of servers per machine must be specified with a positive number.'
-            connect_to_server(ip_config, num_servers, max_queue_size, net_type)
+            connect_to_server(ip_config, num_servers, max_queue_size, net_type, group_id=group_id)
         init_role('default')
+        print("---------- CLIENT init_role finished.")
         init_kvstore(ip_config, num_servers, 'default')
-
+        print("--------- CLIENT init_kvstore is finished.")
 
 def finalize_client():
     """Release resources of this client."""
     if os.environ.get('DGL_DIST_MODE', 'standalone') != 'standalone':
         rpc.finalize_sender()
+        print("-------------- sender is finalized...")
         rpc.finalize_receiver()
+        print("-------------- receiver is finalized...")
     global INITIALIZED
     INITIALIZED = False
 
@@ -311,11 +316,21 @@ def exit_client():
     needs to call `exit_client` before calling `initialize` again.
     """
     # Only client with rank_0 will send shutdown request to servers.
+    print("----------- exit_client() 0 ==============")
     finalize_worker()  # finalize workers should be earilier than barrier, and non-blocking
+    print("----------- exit_client() 0.1 ==============")
     if os.environ.get('DGL_DIST_MODE', 'standalone') != 'standalone':
         rpc.client_barrier()
+        print("----------- exit_client() 0.2 ==============")
         shutdown_servers()
+        print("----------- exit_client() 0.3 ==============")
+    
+    print("----------- exit_client() 1 ==============")
     finalize_client()
+    print("----------- exit_client() 2 ==============")
     join_finalize_worker()
+    print("----------- exit_client() 3 ==============")
     close_kvstore()
+    print("----------- exit_client() 4 ==============")
     atexit.unregister(exit_client)
+    print("----------- exit_client() 5 ==============")

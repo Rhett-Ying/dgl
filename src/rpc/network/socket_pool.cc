@@ -24,11 +24,25 @@ SocketPool::SocketPool() {
 #endif
 }
 
+SocketPool::SocketPool(SocketPool&& other) {
+#ifdef USE_EPOLL
+  epfd_ = other.epfd_;
+  if (epfd_ < 0) {
+    LOG(FATAL) << "SocketPool cannot create epfd";
+  }
+#endif
+}
+
 void SocketPool::AddSocket(std::shared_ptr<TCPSocket> socket, int socket_id,
   int events) {
+    std::lock_guard<std::mutex> lk(mtx_);
   int fd = socket->Socket();
+  if(tcp_sockets_.count(fd)>0){
+    LOG(FATAL)<< "This fd~"<<fd<<" already added.";
+  }
   tcp_sockets_[fd] = socket;
   socket_ids_[fd] = socket_id;
+  std::cout<<"------------- SocketPoll::AddSocket::fd~"<<fd<<", id~"<<socket_id<<", size~"<<socket_ids_.size()<<std::endl;
 
 #ifdef USE_EPOLL
   epoll_event e;
@@ -53,6 +67,7 @@ void SocketPool::AddSocket(std::shared_ptr<TCPSocket> socket, int socket_id,
 }
 
 size_t SocketPool::RemoveSocket(std::shared_ptr<TCPSocket> socket) {
+  std::lock_guard<std::mutex> lk(mtx_);
   int fd = socket->Socket();
   socket_ids_.erase(fd);
   tcp_sockets_.erase(fd);
@@ -72,6 +87,7 @@ SocketPool::~SocketPool() {
 }
 
 std::shared_ptr<TCPSocket> SocketPool::GetActiveSocket(int* socket_id) {
+  std::lock_guard<std::mutex> lk(mtx_);
   if (socket_ids_.empty()) {
     return nullptr;
   }

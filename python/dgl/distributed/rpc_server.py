@@ -3,7 +3,7 @@
 import time
 
 from . import rpc
-from .constants import MAX_QUEUE_SIZE
+from .constants import MAX_QUEUE_SIZE, SERVER_EXIT, SERVER_KEEP_ALIVE
 
 def start_server(server_id, ip_config, num_servers, num_clients, server_state, \
     max_queue_size=MAX_QUEUE_SIZE, net_type='socket'):
@@ -60,42 +60,87 @@ def start_server(server_id, ip_config, num_servers, num_clients, server_state, \
     ip_addr = server_namebook[server_id][1]
     port = server_namebook[server_id][2]
     rpc.create_sender(max_queue_size, net_type)
-    rpc.create_receiver(max_queue_size, net_type)
+    rpc.create_receiver(max_queue_size, net_type, 1)
     # wait all the senders connect to server.
     # Once all the senders connect to server, server will not
     # accept new sender's connection
     print("Wait connections ...")
     rpc.receiver_wait(ip_addr, port, num_clients)
-    print("%d clients connected!" % num_clients)
-    rpc.set_num_client(num_clients)
-    # Recv all the client's IP and assign ID to clients
-    addr_list = []
-    client_namebook = {}
-    for _ in range(num_clients):
-        req, _ = rpc.recv_request()
-        addr_list.append(req.ip_addr)
-    addr_list.sort()
-    for client_id, addr in enumerate(addr_list):
-        client_namebook[client_id] = addr
-    for client_id, addr in client_namebook.items():
-        client_ip, client_port = addr.split(':')
-        rpc.add_receiver_addr(client_ip, client_port, client_id)
-    time.sleep(3) # wait client's socket ready. 3 sec is enough.
-    rpc.sender_connect()
-    if rpc.get_rank() == 0: # server_0 send all the IDs
-        for client_id, _ in client_namebook.items():
-            register_res = rpc.ClientRegisterResponse(client_id)
-            rpc.send_response(client_id, register_res)
+    
     # main service loop
+    addr_list = {}
+    
+    ready_to_init = []
+    ready_group_id = 0
+    curr_init_client_num = 4
+    inited_client_map={}
     while True:
+        if len(ready_to_init) > 0:
+            #hande-shake logic
+            print("------------- group_id:{}, num_clients:{} connected!!!!!".format(ready_group_id,num_clients))
+            rpc.set_num_client(num_clients, ready_group_id)
+            # Recv all the client's IP and assign ID to clients
+            ready_to_init.sort()
+            client_namebook = {}
+            for client_id, addr in enumerate(ready_to_init):
+                client_namebook[client_id] = addr
+            assert ready_group_id not in inited_client_map
+            inited_client_map[ready_group_id] = {}
+            for client_id, addr in client_namebook.items():
+                client_ip, client_port = addr.split(':')
+                g_client_id = ready_group_id*100+client_id
+                rpc.add_receiver_addr(client_ip, client_port, g_client_id)
+                inited_client_map[ready_group_id][client_id] = (g_client_id, addr)
+                rpc.record_group_client_id(ready_group_id, g_client_id)
+                rpc.sender_connect(g_client_id)
+                print("----- Sender is connected to recv: g_client_id~{}, client_id~{}, client_ip~{}, client_port~{}".format(g_client_id,client_id, client_ip, client_port))
+            
+            #####rpc.sender_connect_orig()
+            time.sleep(3) # required @21.11.12 to make sure client has called receiver.wait()
+            if rpc.get_rank() == 0: # server_0 send all the IDs
+                for client_id, _ in client_namebook.items():
+                    register_res = rpc.ClientRegisterResponse(client_id)
+                    g_client_id, _ = inited_client_map[ready_group_id][client_id]
+                    rpc.send_response(g_client_id, register_res)
+                    print("--------- ClientRegisterResponse is sent to {}".format(g_client_id))
+            ready_to_init=[]
+            ready_group_id = 0
+
         req, client_id = rpc.recv_request()
+
+        if isinstance(req, rpc.ClientRegisterRequest):
+            #print("--------- ClientRegisterRequest.ip_addr: {}, group_id: {}".format(req.ip_addr, req.group_id))
+            if req.group_id not in addr_list:
+                addr_list[req.group_id] = []
+            addr_list[req.group_id].append(req.ip_addr)
+            #rpc.record_recv_group_client_id(req.group_id, client_id)
+            #print("-------------- client_id/sender_id in receiver: {}".format(client_id))
+            #print("**************** group_id:{}, num:{}".format(req.group_id, len(addr_list[req.group_id])))
+            assert len(addr_list[req.group_id]) <= num_clients
+            if len(addr_list[req.group_id]) == num_clients:
+                ready_to_init = addr_list[req.group_id]
+                ready_group_id = req.group_id
+            continue
+        
         res = req.process_request(server_state)
         if res is not None:
             if isinstance(res, list):
                 for response in res:
                     target_id, res_data = response
+                    target_id, _ = inited_client_map[req.group_id][target_id]
                     rpc.send_response(target_id, res_data)
-            elif isinstance(res, str) and res == 'exit':
-                break # break the loop and exit server
+            elif isinstance(res, str):
+                if res == SERVER_EXIT:
+                    # exit server process
+                    return
+                elif res == SERVER_KEEP_ALIVE:
+                    # keep alive
+                    print("-------------- Server keeps alive...........")
+                    continue
+                else:
+                    raise RuntimeError("Unexpected return code: {}".format(res))
             else:
+                client_id, _ = inited_client_map[req.group_id][req.client_id]
                 rpc.send_response(client_id, res)
+                msg = res.msg if hasattr(res, 'msg') else "Unknown"
+                print("------------ SERVER response g_client_id: {}, msg:{}, client_id~{}, group~{}".format(client_id, msg,req.client_id, req.group_id))

@@ -35,20 +35,25 @@ class RegisterRoleRequest(rpc.Request):
     role : str
         role of client
     """
-    def __init__(self, client_id, machine_id, role):
+    def __init__(self, client_id, machine_id, role, group_id):
         self.client_id = client_id
         self.machine_id = machine_id
         self.role = role
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self.client_id, self.machine_id, self.role
+        return self.client_id, self.machine_id, self.role, self.group_id
 
     def __setstate__(self, state):
-        self.client_id, self.machine_id, self.role = state
+        self.client_id, self.machine_id, self.role, self.group_id = state
 
     def process_request(self, server_state):
+        print("---------- RegisterRoleRequest~client_id:{}, machine_id:{}, group_id:{}".format(self.client_id, self.machine_id,self.group_id))
         kv_store = server_state.kv_store
         role = server_state.roles
+        if self.group_id not in role:
+            role[self.group_id] = {}
+        role = role[self.group_id]
         if self.role not in role:
             role[self.role] = set()
             if kv_store is not None:
@@ -58,9 +63,9 @@ class RegisterRoleRequest(rpc.Request):
         for key in role:
             total_count += len(role[key])
         # Clients are blocked util all clients register their roles.
-        if total_count == rpc.get_num_client():
+        if total_count == rpc.get_num_client(self.group_id):
             res_list = []
-            for target_id in range(rpc.get_num_client()):
+            for target_id in range(rpc.get_num_client(self.group_id)):
                 res_list.append((target_id, RegisterRoleResponse(REG_ROLE_MSG)))
             return res_list
         return None
@@ -82,17 +87,19 @@ class GetRoleResponse(rpc.Response):
 
 class GetRoleRequest(rpc.Request):
     """Send a request to get the roles of all client processes."""
-    def __init__(self):
+    def __init__(self, client_id, group_id):
         self.msg = GET_ROLE_MSG
+        self.client_id = client_id
+        self.group_id = group_id
 
     def __getstate__(self):
-        return self.msg
+        return self.msg, self.client_id, self.group_id
 
     def __setstate__(self, state):
-        self.msg = state
+        self.msg, self.client_id, self.group_id = state
 
     def process_request(self, server_state):
-        return GetRoleResponse(server_state.roles)
+        return GetRoleResponse(server_state.roles[self.group_id])
 
 # The key is role, the value is a dict of mapping RPC rank to a rank within the role.
 PER_ROLE_RANK = {}
@@ -132,21 +139,25 @@ def init_role(role):
         IS_STANDALONE = True
         return
 
+    print("------ init_role get started.")
     PER_ROLE_RANK = {}
     GLOBAL_RANK = {}
 
     # Register the current role. This blocks until all clients register themselves.
     client_id = rpc.get_rank()
     machine_id = rpc.get_machine_id()
-    request = RegisterRoleRequest(client_id, machine_id, role)
+    group_id = rpc.get_group_id()
+    request = RegisterRoleRequest(client_id, machine_id, role, group_id)
     rpc.send_request(0, request)
     response = rpc.recv_response()
+    print("--------- init_role::res.msg:{}".format(response.msg))
     assert response.msg == REG_ROLE_MSG
 
     # Get all clients on all machines.
-    request = GetRoleRequest()
+    request = GetRoleRequest(client_id, group_id)
     rpc.send_request(0, request)
     response = rpc.recv_response()
+    print("------------- response.msg:{}".format(response.msg))
     assert response.msg == GET_ROLE_MSG
 
     # Here we want to compute a new rank for each client.
@@ -181,6 +192,7 @@ def init_role(role):
                 global_rank += 1
                 PER_ROLE_RANK[role_name][client_id] = per_role_rank
                 per_role_rank += 1
+    print("-------- init_role is done")
 
 def get_global_rank():
     """Get the global rank
