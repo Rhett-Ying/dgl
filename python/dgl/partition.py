@@ -176,6 +176,8 @@ def partition_graph_with_halo(g, node_part, extra_cached_hops, reshuffle=False):
     # An edge is assigned to a partition based on its destination node. If its destination node
     # is assigned to a partition, we assign the edge to the partition as well.
     def get_inner_edge(subg, inner_node):
+        print("------ get_inner_edge -------- begin")
+        st = time.time()
         inner_edge = F.zeros((subg.number_of_edges(),), F.int8, F.cpu())
         inner_nids = F.nonzero_1d(inner_node)
         # TODO(zhengda) we need to fix utils.toindex() to avoid the dtype cast below.
@@ -183,10 +185,13 @@ def partition_graph_with_halo(g, node_part, extra_cached_hops, reshuffle=False):
         inner_eids = subg.in_edges(inner_nids, form='eid')
         inner_edge = F.scatter_row(inner_edge, inner_eids,
                                    F.ones((len(inner_eids),), F.dtype(inner_edge), F.cpu()))
+        print("------ get_inner_edge -------- end, consumed_time: {:.3f}".format(time.time()-st))
         return inner_edge
 
     # This creaets a subgraph from subgraphs returned from the CAPI above.
     def create_subgraph(subg, induced_nodes, induced_edges, inner_node):
+        print("------ create_subgraph -------- begin")
+        st = time.time()
         subg1 = DGLHeteroGraph(gidx=subg.graph, ntypes=['_N'], etypes=['_E'])
         # If IDs are shuffled, we should shuffled edges. This will help us collect edge data
         # from the distributed graph after training.
@@ -206,12 +211,16 @@ def partition_graph_with_halo(g, node_part, extra_cached_hops, reshuffle=False):
         else:
             subg1.ndata[NID] = induced_nodes[0]
             subg1.edata[EID] = induced_edges[0]
+        print("------ create_subgraph -------- end, consumed_time: {:.3f}".format(time.time()-st))
         return subg1
 
     for i, subg in enumerate(subgs):
+        print("-------- enumerating~{} begins".format(i))
         inner_node = _get_halo_heterosubgraph_inner_node(subg)
         inner_node = F.zerocopy_from_dlpack(inner_node.to_dlpack())
+        print("------ partition_graph_with_halo ~ 1")
         subg = create_subgraph(subg, subg.induced_nodes, subg.induced_edges, inner_node)
+        print("------ partition_graph_with_halo ~ 2")
         subg.ndata['inner_node'] = inner_node
         subg.ndata['part_id'] = F.gather_row(node_part, subg.ndata[NID])
         if reshuffle:
@@ -269,8 +278,10 @@ def metis_partition_assignment(g, k, balance_ntypes=None, balance_edges=False, m
     # METIS works only on symmetric graphs.
     # The METIS runs on the symmetric graph to generate the node assignment to partitions.
     start = time.time()
-    sym_gidx = _CAPI_DGLMakeSymmetric_Hetero(g._graph)
-    sym_g = DGLHeteroGraph(gidx=sym_gidx)
+    #sym_gidx = _CAPI_DGLMakeSymmetric_Hetero(g._graph)
+    #sym_g = DGLHeteroGraph(gidx=sym_gidx)
+    print("~~~~~ ignoring _CAPI_DGLMakeSymmetric_Hetero()")
+    sym_g = g
     print('Convert a graph into a bidirected graph: {:.3f} seconds'.format(
         time.time() - start))
     vwgt = []
