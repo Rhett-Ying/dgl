@@ -67,7 +67,7 @@ RPCStatus SendRPCMessage(const RPCMessage& msg, const int32_t target_id) {
   RPCContext::getInstance()->sender->Send(msg, target_id);
   if (RPCContext::getInstance()->inst_type ==
       "server" /*&& msg->service_id == 901231*/) {
-    LOG(INFO) << "------ server -------- " << msg;
+    LOG(INFO) << "------ server~send -------- " << " target_id:"<< target_id << msg ;
   }
   return kRPCSuccess;
 }
@@ -78,7 +78,7 @@ RPCStatus RecvRPCMessage(RPCMessage* msg, int32_t timeout) {
   auto ret = RPCContext::getInstance()->receiver->Recv(msg, timeout);
   if (ret == kRPCSuccess) {
     if(RPCContext::getInstance()->inst_type == "server" /*&& msg->service_id == 901231*/ ){
-      LOG(INFO)<<"------ server -------- " << *msg;
+      LOG(INFO)<<"------ server~recv -------- " << *msg;
     }
   }
   return ret;
@@ -537,7 +537,7 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCFastPull")
   for (int i = 0; i < msg_count; ++i) {
     RPCMessage msg;
     //CHECK_EQ(RecvRPCMessage(&msg, 3000), kRPCSuccess);
-    auto ret = RecvRPCMessage(&msg, 3000);
+    auto ret = RecvRPCMessage(&msg, 9000);
     if (ret != kRPCSuccess){
       std::ostringstream oss;
       oss <<"----------- sent messages --------\n";
