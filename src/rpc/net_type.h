@@ -58,7 +58,7 @@ struct RPCSender : RPCBase {
    * \param msg data message 
    * \param recv_id receiver's ID
    */
-  virtual void Send(const RPCMessage &msg, int recv_id) = 0;
+  virtual RPCStatus Send(const RPCMessage &msg, int recv_id) = 0;
 };
 
 struct RPCReceiver : RPCBase {

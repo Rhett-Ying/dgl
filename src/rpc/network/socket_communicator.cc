@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include <memory>
+#include <thread>
+#include <chrono>
 
 #include "socket_communicator.h"
 #include "../../c_api_common.h"
@@ -100,7 +102,7 @@ bool SocketSender::ConnectReceiverFinalize(const int max_try_times) {
   return true;
 }
 
-void SocketSender::Send(const rpc::RPCMessage& msg, int recv_id) {
+rpc::RPCStatus SocketSender::Send(const rpc::RPCMessage& msg, int recv_id) {
   std::shared_ptr<std::string> zerocopy_blob(new std::string());
   StreamWithBuffer zc_write_strm(zerocopy_blob.get(), true);
   zc_write_strm.Write(msg);
@@ -126,6 +128,7 @@ void SocketSender::Send(const rpc::RPCMessage& msg, int recv_id) {
     CHECK_EQ(Send(
       ndarray_data_msg, recv_id), ADD_SUCCESS);
   }
+  return rpc::RPCStatus::kRPCSuccess;
 }
 
 STATUS SocketSender::Send(Message msg, int recv_id) {
@@ -364,9 +367,11 @@ int64_t RecvDataSize(TCPSocket* socket) {
       max_len);
     if (tmp == -1) {
       if (received_bytes > 0) {
+        LOG(INFO)<<"We want to finish reading full data_size";
         // We want to finish reading full data_size
         continue;
       }
+      LOG(INFO)<<"No data is available in RecvDataSize";
       return -1;
     }
     received_bytes += tmp;
@@ -381,6 +386,7 @@ void RecvData(TCPSocket* socket, char* buffer, const int64_t &data_size,
     int64_t tmp = socket->Receive(buffer + *received_bytes, max_len);
     if (tmp == -1) {
       // Socket not ready, no more data to read
+      LOG(INFO)<<"Socket not ready, no more data to read";
       return;
     }
     *received_bytes += tmp;
@@ -403,12 +409,14 @@ void SocketReceiver::RecvLoop(
 
   // Main loop to receive messages
   for (;;) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
     int sender_id;
     // Get active socket using epoll
     std::shared_ptr<TCPSocket> socket = socket_pool.GetActiveSocket(&sender_id);
     if (queues[sender_id]->EmptyAndNoMoreAdd()) {
       // This sender has already stopped
       if (socket_pool.RemoveSocket(socket) == 0) {
+        LOG(INFO)<< "Queue of sender_id~"<<sender_id<<" is removed.";
         return;
       }
       continue;
@@ -437,6 +445,9 @@ void SocketReceiver::RecvLoop(
         if (socket_pool.RemoveSocket(socket) == 0) {
           return;
         }
+      }
+      else{
+        LOG(INFO)<<"------- data_size == -1 not expected.";
       }
     }
 

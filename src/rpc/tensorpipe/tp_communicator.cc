@@ -41,7 +41,7 @@ bool TPSender::ConnectReceiver(const std::string &addr, int recv_id) {
   return true;
 }
 
-void TPSender::Send(const RPCMessage &msg, int recv_id) {
+RPCStatus TPSender::Send(const RPCMessage &msg, int recv_id) {
   auto pipe = pipes_[recv_id];
   tensorpipe::Message tp_msg;
   std::string *zerocopy_blob_ptr = &tp_msg.metadata;
@@ -77,6 +77,7 @@ void TPSender::Send(const RPCMessage &msg, int recv_id) {
                 done->set_value();
               });
   done->get_future().wait();
+  return kRPCSuccess;
 }
 
 void TPSender::Finalize() {

@@ -65,7 +65,7 @@ class TPSender : public RPCSender {
    * \param msg data message
    * \param recv_id receiver's ID
    */
-  void Send(const RPCMessage& msg, int recv_id) override;
+  RPCStatus Send(const RPCMessage& msg, int recv_id) override;
 
   /*!
    * \brief Finalize TPSender

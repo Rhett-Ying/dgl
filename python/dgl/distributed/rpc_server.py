@@ -115,9 +115,9 @@ def start_server(server_id, ip_config, num_servers, num_clients, server_state, \
             recv_clients[group_id].append(req.ip_addr)
             continue
 
-        print("----------- beforeProcess server~{} ---- client_id:{}, req: {}".format(rpc.get_rank(), client_id, str(req)))
+        #print("----------- beforeProcess server~{} ---- client_id:{}, req: {}".format(rpc.get_rank(), client_id, str(req)))
         res = req.process_request(server_state)
-        print("----------- procssed server~{} ---- client_id:{}, req: {}".format(rpc.get_rank(), client_id, req))
+        #print("----------- procssed server~{} ---- client_id:{}, req: {}".format(rpc.get_rank(), client_id, req))
         if res is not None:
             if isinstance(res, list):
                 for response in res:

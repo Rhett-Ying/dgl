@@ -76,7 +76,7 @@ class SocketSender : public Sender {
    * \param msg data message 
    * \param recv_id receiver's ID
    */
-  void Send(const rpc::RPCMessage& msg, int recv_id) override;
+  rpc::RPCStatus Send(const rpc::RPCMessage& msg, int recv_id) override;
 
   /*!
    * \brief Finalize TPSender
