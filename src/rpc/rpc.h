@@ -161,7 +161,7 @@ struct RPCContext {
 /*! \brief RPC status flag */
 enum RPCStatus {
   kRPCSuccess = 0,
-  kRPCTimeOut,
+  kRPCTimeOut = 1,
 };
 
 /*!
@@ -191,7 +191,7 @@ RPCStatus SendRPCMessage(const RPCMessage& msg);
  * \param timeout The timeout value in milliseconds. If zero, wait indefinitely.
  * \return status flag
  */
-RPCStatus RecvRPCMessage(RPCMessage* msg, int32_t timeout = 0);
+RPCStatus RecvRPCMessage(RPCMessage* msg, int32_t timeout = -1);
 
 }  // namespace rpc
 }  // namespace dgl

@@ -393,7 +393,7 @@ DGL_REGISTER_GLOBAL("network._CAPI_ReceiverRecvNodeFlow")
     network::Receiver* receiver = static_cast<network::SocketReceiver*>(chandle);
     int send_id = 0;
     Message recv_msg;
-    CHECK_EQ(receiver->Recv(&recv_msg, &send_id), REMOVE_SUCCESS);
+    CHECK_EQ(receiver->Recv(&recv_msg, &send_id, 3600), REMOVE_SUCCESS);
     ArrayMeta meta(recv_msg.data, recv_msg.size);
     recv_msg.deallocator(&recv_msg);
     if (meta.msg_type() == kNodeFlowMsg) {
@@ -575,7 +575,7 @@ static KVStoreMsg* recv_kv_message(network::Receiver* receiver) {
   // Recv kv_Msg
   Message recv_kv_msg;
   int send_id;
-  CHECK_EQ(receiver->Recv(&recv_kv_msg, &send_id), REMOVE_SUCCESS);
+  CHECK_EQ(receiver->Recv(&recv_kv_msg, &send_id, 3600), REMOVE_SUCCESS);
   kv_msg->Deserialize(recv_kv_msg.data, recv_kv_msg.size);
   recv_kv_msg.deallocator(&recv_kv_msg);
   if (kv_msg->msg_type == kFinalMsg ||

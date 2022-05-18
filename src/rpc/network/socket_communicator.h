@@ -173,7 +173,7 @@ class SocketReceiver : public Receiver {
    * \brief Recv RPCMessage from Sender. Actually removing data from queue.
    * \param msg pointer of RPCmessage
    */
-  void Recv(rpc::RPCMessage* msg) override;
+  bool Recv(rpc::RPCMessage* msg, int32_t timeout=-1) override;
 
   /*!
    * \brief Recv data from Sender. Actually removing data from msg_queue.
@@ -186,7 +186,7 @@ class SocketReceiver : public Receiver {
    * (2) The Recv() API is thread-safe.
    * (3) Memory allocated by communicator but will not own it after the function returns.
    */
-  STATUS Recv(Message* msg, int* send_id) override;
+  STATUS Recv(Message* msg, int* send_id, int timeout) override;
 
   /*!
    * \brief Recv data from a specified Sender. Actually removing data from msg_queue.

@@ -70,9 +70,9 @@ RPCStatus SendRPCMessage(const RPCMessage& msg, const int32_t target_id) {
 
 RPCStatus RecvRPCMessage(RPCMessage* msg, int32_t timeout) {
   // ignore timeout now
-  CHECK_EQ(timeout, 0) << "rpc cannot support timeout now.";
-  RPCContext::getInstance()->receiver->Recv(msg);
-  return kRPCSuccess;
+  //CHECK_EQ(timeout, 0) << "rpc cannot support timeout now.";
+  auto ret = RPCContext::getInstance()->receiver->Recv(msg, timeout);
+  return ret ? kRPCSuccess : kRPCTimeOut;
 }
 
 void InitGlobalTpContext() {
@@ -521,7 +521,7 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCFastPull")
   // Recv remote message
   for (int i = 0; i < msg_count; ++i) {
     RPCMessage msg;
-    RecvRPCMessage(&msg, 0);
+    CHECK_EQ(RecvRPCMessage(&msg, 3000), kRPCSuccess);
     int part_id = msg.server_id / group_count;
     char* data_char = static_cast<char*>(msg.tensors[0]->data);
     dgl_id_t id_size = remote_ids[part_id].size();

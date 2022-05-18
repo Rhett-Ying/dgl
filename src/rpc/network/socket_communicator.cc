@@ -275,11 +275,14 @@ bool SocketReceiver::Wait(const std::string &addr, int num_sender, bool blocking
   return true;
 }
 
-void SocketReceiver::Recv(rpc::RPCMessage* msg) {
+bool SocketReceiver::Recv(rpc::RPCMessage* msg, int32_t timeout) {
   Message rpc_meta_msg;
   int send_id;
-  CHECK_EQ(Recv(
-    &rpc_meta_msg, &send_id), REMOVE_SUCCESS);
+  auto status = Recv(&rpc_meta_msg, &send_id, timeout);
+  if (status == QUEUE_EMPTY){
+    return false;
+  }
+  CHECK_EQ(status, REMOVE_SUCCESS);
   char* count_ptr = rpc_meta_msg.data+rpc_meta_msg.size-sizeof(int32_t);
   int32_t nonempty_ndarray_count = *(reinterpret_cast<int32_t*>(count_ptr));
   // Recv real ndarray data
@@ -293,14 +296,19 @@ void SocketReceiver::Recv(rpc::RPCMessage* msg) {
   StreamWithBuffer zc_read_strm(rpc_meta_msg.data, rpc_meta_msg.size-sizeof(int32_t), buffer_list);
   zc_read_strm.Read(msg);
   rpc_meta_msg.deallocator(&rpc_meta_msg);
+  return true;
 }
 
-STATUS SocketReceiver::Recv(Message* msg, int* send_id) {
+STATUS SocketReceiver::Recv(Message* msg, int* send_id, int timeout) {
   // queue_sem_ is a semaphore indicating how many elements in multiple
   // message queues.
   // When calling queue_sem_.Wait(), this Recv will be suspended until
   // queue_sem_ > 0, decrease queue_sem_ by 1, then start to fetch a message.
-  queue_sem_.Wait();
+  if (!queue_sem_.TimedWait(timeout)) {
+    LOG(ERROR) << "Timeout in SocketReceiver::Recv()::semaphore in " << timeout
+               << " milliseconds.";
+    return QUEUE_EMPTY;
+  }
   for (;;) {
     for (; mq_iter_ != msg_queue_.end(); ++mq_iter_) {
       STATUS code = mq_iter_->second->Remove(msg, false);

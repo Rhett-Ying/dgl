@@ -10,7 +10,11 @@
 #include <windows.h>
 #else
 #include <semaphore.h>
+#include <time.h>
+#include <unistd.h>
+#include <errno.h>
 #endif
+#include <dmlc/logging.h>
 
 
 namespace dgl {
@@ -29,6 +33,33 @@ class Semaphore {
    * \brief blocking wait, decrease semaphore by 1
    */
   void Wait();
+  bool TimedWait(int timeout) {
+#ifdef _WIN32
+    Wait();
+    return true;
+#else
+    if (timeout == -1) {
+      timeout = 3600 * 24 * 1000;
+    }
+    timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+      LOG(ERROR) << "Failed to call clock_gettime...";
+      return false;
+    }
+    int nsec = std::max(timeout / 1000, 1);
+    ts.tv_sec += nsec;
+    int ret = 0;
+    while ((ret = sem_timedwait(&sem_, &ts) != 0) && errno == EINTR) {
+      continue;
+    };
+    if (ret != 0 && errno == ETIMEDOUT) {
+      LOG(ERROR) << "sem_timedwait timeout after " << timeout
+                 << " milliseconds.";
+      return false;
+    }
+    return ret == 0;
+#endif
+  }
   /*!
    * \brief increase semaphore by 1
    */

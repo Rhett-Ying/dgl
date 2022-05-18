@@ -105,7 +105,7 @@ class Receiver : public rpc::RPCReceiver {
    * (2) The Recv() API is thread-safe.
    * (3) Memory allocated by communicator but will not own it after the function returns.
    */
-  virtual STATUS Recv(Message* msg, int* send_id) = 0;
+  virtual STATUS Recv(Message* msg, int* send_id, int timeout) = 0;
 
   /*!
    * \brief Recv data from a specified Sender

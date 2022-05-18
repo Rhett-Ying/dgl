@@ -64,19 +64,21 @@ class HelloResponse(dgl.distributed.Response):
         self.hello_str, self.integer, self.tensor = state
 
 class HelloRequest(dgl.distributed.Request):
-    def __init__(self, hello_str, integer, tensor, func):
+    def __init__(self, hello_str, integer, tensor, func, timeout=0):
         self.hello_str = hello_str
         self.integer = integer
         self.tensor = tensor
         self.func = func
+        self.timeout = timeout
 
     def __getstate__(self):
-        return self.hello_str, self.integer, self.tensor, self.func
+        return self.hello_str, self.integer, self.tensor, self.func, self.timeout
 
     def __setstate__(self, state):
-        self.hello_str, self.integer, self.tensor, self.func = state
+        self.hello_str, self.integer, self.tensor, self.func, self.timeout = state
 
     def process_request(self, server_state):
+        time.sleep(self.timeout)
         assert self.hello_str == STR
         assert self.integer == INTEGER
         new_tensor = self.func(self.tensor)
@@ -182,6 +184,38 @@ def test_rpc():
     pclient.start()
     pserver.join()
     pclient.join()
+
+@unittest.skipIf(os.name == 'nt', reason='Do not support windows yet')
+def test_rpc_timeout():
+    reset_envs()
+    os.environ['DGL_DIST_MODE'] = 'distributed'
+    generate_ip_config("rpc_ip_config.txt", 1, 1)
+    ctx = mp.get_context('spawn')
+    pserver = ctx.Process(target=start_server, args=(1, "rpc_ip_config.txt", 0, False, 1, 'socket'))
+    pserver.start()
+    #client
+    dgl.distributed.register_service(
+        HELLO_SERVICE_ID, HelloRequest, HelloResponse)
+    dgl.distributed.connect_to_server(
+        ip_config="rpc_ip_config.txt", num_servers=1, group_id=0, net_type='socket')
+    timeout_milli = 5 * 1000
+    req = HelloRequest(STR, INTEGER, TENSOR, simple_func,
+                       int(timeout_milli/1000))
+    # test send and recv
+    dgl.distributed.send_request(0, req)
+    expect_except = False
+    try:
+        dgl.distributed.recv_response(int(timeout_milli/2))
+    except dgl.DGLError:
+        expect_except = True
+    assert expect_except
+    res = dgl.distributed.recv_response(timeout_milli)
+    assert res.hello_str == STR
+    assert res.integer == INTEGER
+    assert_array_equal(F.asnumpy(res.tensor), F.asnumpy(TENSOR))
+
+    dgl.distributed.exit_client()
+    pserver.join()
 
 @unittest.skipIf(os.name == 'nt', reason='Do not support windows yet')
 @pytest.mark.parametrize("net_type", ['socket', 'tensorpipe'])

@@ -658,7 +658,7 @@ def send_response(target, response, group_id):
     msg = RPCMessage(service_id, msg_seq, client_id, server_id, data, tensors, group_id)
     send_rpc_message(msg, get_client(client_id, group_id))
 
-def recv_request(timeout=0):
+def recv_request(timeout=-1):
     """Receive one request.
 
     Receive one :class:`RPCMessage` and de-serialize it into a proper Request object.
@@ -699,7 +699,7 @@ def recv_request(timeout=0):
                        'different from my rank {}!'.format(msg.server_id, get_rank()))
     return req, msg.client_id, msg.group_id
 
-def recv_response(timeout=0):
+def recv_response(timeout=3*1000):
     """Receive one response.
 
     Receive one :class:`RPCMessage` and de-serialize it into a proper Response object.
@@ -738,7 +738,7 @@ def recv_response(timeout=0):
                        "different from my group {}!".format(msg.group_id, get_group_id()))
     return res
 
-def remote_call(target_and_requests, timeout=0):
+def remote_call(target_and_requests, timeout=3*1000):
     """Invoke registered services on remote servers and collect responses.
 
     The operation is blocking -- it returns when it receives all responses
@@ -835,7 +835,7 @@ def send_requests_to_machine(target_and_requests):
             msgseq2pos[msg_seq] = pos
     return msgseq2pos
 
-def recv_responses(msgseq2pos, timeout=0):
+def recv_responses(msgseq2pos, timeout=3*1000):
     """ Receive responses
 
     It returns the responses in the same order as the requests. The order of requests
@@ -877,7 +877,7 @@ def recv_responses(msgseq2pos, timeout=0):
         all_res[msgseq2pos[msg.msg_seq]] = res
     return all_res
 
-def remote_call_to_machine(target_and_requests, timeout=0):
+def remote_call_to_machine(target_and_requests, timeout=-1):
     """Invoke registered services on remote machine
     (which will ramdom select a server to process the request) and collect responses.
 
@@ -934,7 +934,7 @@ def send_rpc_message(msg, target):
     """
     _CAPI_DGLRPCSendRPCMessage(msg, int(target))
 
-def recv_rpc_message(timeout=0):
+def recv_rpc_message(timeout=-1):
     """Receive one message.
 
     The operation is blocking -- it returns when it receives any message
@@ -955,14 +955,16 @@ def recv_rpc_message(timeout=0):
     ConnectionError if there is any problem with the connection.
     """
     msg = _CAPI_DGLRPCCreateEmptyRPCMessage()
-    _CAPI_DGLRPCRecvRPCMessage(timeout, msg)
+    ret = _CAPI_DGLRPCRecvRPCMessage(timeout, msg)
+    if ret != 0:
+        raise DGLError("Timeout in receiving rpc message after {} milliseconds.".format(timeout))
     return msg
 
 def client_barrier():
     """Barrier all client processes"""
     req = ClientBarrierRequest()
     send_request(0, req)
-    res = recv_response()
+    res = recv_response(-1)
     assert res.msg == 'barrier'
 
 def finalize_server():
