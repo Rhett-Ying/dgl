@@ -65,6 +65,10 @@ const std::string& guessAddress() {
 
 RPCStatus SendRPCMessage(const RPCMessage& msg, const int32_t target_id) {
   RPCContext::getInstance()->sender->Send(msg, target_id);
+  if (RPCContext::getInstance()->inst_type ==
+      "server" /*&& msg->service_id == 901231*/) {
+    LOG(INFO) << "------ server -------- " << msg;
+  }
   return kRPCSuccess;
 }
 
