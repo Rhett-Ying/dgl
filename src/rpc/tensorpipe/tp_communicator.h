@@ -136,7 +136,7 @@ class TPReceiver : public RPCReceiver {
    * \brief Recv RPCMessage from Sender. Actually removing data from queue.
    * \param msg pointer of RPCmessage
    */
-  bool Recv(RPCMessage* msg, int timeout=-1) override;
+  RPCStatus Recv(RPCMessage* msg, int timeout=-1) override;
 
   /*!
    * \brief Finalize SocketReceiver

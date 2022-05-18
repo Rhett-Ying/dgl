@@ -104,7 +104,7 @@ def reset():
     """
     _CAPI_DGLRPCReset()
 
-def create_sender(max_queue_size, net_type):
+def create_sender(max_queue_size, net_type, inst_type='server'):
     """Create rpc sender of this process.
 
     Parameters
@@ -117,7 +117,7 @@ def create_sender(max_queue_size, net_type):
     max_thread_count = int(os.getenv('DGL_SOCKET_MAX_THREAD_COUNT', '0'))
     _CAPI_DGLRPCCreateSender(int(max_queue_size), net_type, max_thread_count)
 
-def create_receiver(max_queue_size, net_type):
+def create_receiver(max_queue_size, net_type, inst_type='server'):
     """Create rpc receiver of this process.
 
     Parameters
@@ -128,7 +128,7 @@ def create_receiver(max_queue_size, net_type):
         Networking type. Current options are: 'socket', 'tensorpipe'.
     """
     max_thread_count = int(os.getenv('DGL_SOCKET_MAX_THREAD_COUNT', '0'))
-    _CAPI_DGLRPCCreateReceiver(int(max_queue_size), net_type, max_thread_count)
+    _CAPI_DGLRPCCreateReceiver(int(max_queue_size), net_type, max_thread_count, inst_type)
 
 def finalize_sender():
     """Finalize rpc sender of this process.

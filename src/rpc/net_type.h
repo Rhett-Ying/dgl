@@ -78,7 +78,7 @@ struct RPCReceiver : RPCBase {
    * \brief Recv RPCMessage from Sender. Actually removing data from queue.
    * \param msg pointer of RPCmessage
    */
-  virtual bool Recv(RPCMessage *msg, int32_t timeout=-1) = 0;
+  virtual RPCStatus Recv(RPCMessage *msg, int32_t timeout=-1) = 0;
 };
 
 }  // namespace rpc

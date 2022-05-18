@@ -16,6 +16,12 @@
 namespace dgl {
 namespace rpc {
 
+/*! \brief RPC status flag */
+enum RPCStatus {
+  kRPCSuccess = 0,
+  kRPCTimeOut = 1,
+};
+
 /*! \brief RPC message data structure
  *
  * This structure is exposed to Python and can be used as argument or return
@@ -62,6 +68,16 @@ struct RPCMessage : public runtime::Object {
     stream->Write(data);
     stream->Write(tensors);
     stream->Write(group_id);
+  }
+
+  friend std::ostream& operator<<(std::ostream& oss, const RPCMessage& msg){
+    oss <<"server_id:"<<msg.server_id
+    <<", client_id:"<<msg.client_id
+    <<", service_id:"<<msg.service_id
+    <<", msg_seq:"<<msg.msg_seq
+    <<", group_id:"<<msg.group_id
+    ;
+    return oss;
   }
 
   static constexpr const char* _type_key = "rpc.RPCMessage";

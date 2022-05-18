@@ -173,7 +173,7 @@ class SocketReceiver : public Receiver {
    * \brief Recv RPCMessage from Sender. Actually removing data from queue.
    * \param msg pointer of RPCmessage
    */
-  bool Recv(rpc::RPCMessage* msg, int32_t timeout=-1) override;
+  rpc::RPCStatus Recv(rpc::RPCMessage* msg, int32_t timeout=-1) override;
 
   /*!
    * \brief Recv data from Sender. Actually removing data from msg_queue.

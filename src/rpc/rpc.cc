@@ -72,7 +72,12 @@ RPCStatus RecvRPCMessage(RPCMessage* msg, int32_t timeout) {
   // ignore timeout now
   //CHECK_EQ(timeout, 0) << "rpc cannot support timeout now.";
   auto ret = RPCContext::getInstance()->receiver->Recv(msg, timeout);
-  return ret ? kRPCSuccess : kRPCTimeOut;
+  if (ret == kRPCSuccess) {
+    if(RPCContext::getInstance()->inst_type == "server" /*&& msg->service_id == 901231*/ ){
+      LOG(INFO)<<"------ server -------- " << *msg;
+    }
+  }
+  return ret;
 }
 
 void InitGlobalTpContext() {
@@ -134,6 +139,8 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCCreateReceiver")
   int64_t msg_queue_size = args[0];
   std::string type = args[1];
   int max_thread_count = args[2];
+  std::string inst_type = args[3];
+  RPCContext::getInstance()->inst_type = inst_type;
   if (type == "tensorpipe") {
     InitGlobalTpContext();
     RPCContext::getInstance()->receiver.reset(
@@ -145,7 +152,8 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCCreateReceiver")
     LOG(FATAL) << "Unknown communicator type for rpc receiver: " << type;
   }
   LOG(INFO) << "Receiver with NetType~"
-            << RPCContext::getInstance()->receiver->NetType() << " is created.";
+            << RPCContext::getInstance()->receiver->NetType() << " is created for "
+            << RPCContext::getInstance()->inst_type << ".";
 });
 
 DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCFinalizeSender")
@@ -485,6 +493,7 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCFastPull")
   }
   // Send remote id
   int msg_count = 0;
+  std::vector<RPCMessage> sentMsgs;
   for (int i = 0; i < remote_ids.size(); ++i) {
     if (remote_ids[i].size() != 0) {
       RPCMessage msg;
@@ -499,6 +508,7 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCFastPull")
       msg.tensors.push_back(tensor);
       msg.group_id = RPCContext::getInstance()->group_id;
       SendRPCMessage(msg, msg.server_id);
+      sentMsgs.push_back(msg);
       msg_count++;
     }
   }
@@ -518,10 +528,27 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCFastPull")
              local_data_char + local_ids[i] * row_size, row_size);
     }
   });
+  std::vector<RPCMessage> recvMsgs;
   // Recv remote message
   for (int i = 0; i < msg_count; ++i) {
     RPCMessage msg;
-    CHECK_EQ(RecvRPCMessage(&msg, 3000), kRPCSuccess);
+    //CHECK_EQ(RecvRPCMessage(&msg, 3000), kRPCSuccess);
+    auto ret = RecvRPCMessage(&msg, 3000);
+    if (ret != kRPCSuccess){
+      std::ostringstream oss;
+      oss <<"----------- sent messages --------\n";
+      for(const auto& msg: sentMsgs){
+        oss << msg <<"\n";
+      }
+      oss <<"----------- recved messages --------\n";
+      for(const auto& msg : recvMsgs){
+        oss << msg << "\n";
+      }
+      LOG(FATAL) << "----------- " << RPCContext::getInstance()->inst_type
+                 << " --------\n"
+                 << oss.str();
+    }
+    recvMsgs.push_back(msg);
     int part_id = msg.server_id / group_count;
     char* data_char = static_cast<char*>(msg.tensors[0]->data);
     dgl_id_t id_size = remote_ids[part_id].size();

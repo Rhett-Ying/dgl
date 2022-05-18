@@ -275,12 +275,12 @@ bool SocketReceiver::Wait(const std::string &addr, int num_sender, bool blocking
   return true;
 }
 
-bool SocketReceiver::Recv(rpc::RPCMessage* msg, int32_t timeout) {
+rpc::RPCStatus SocketReceiver::Recv(rpc::RPCMessage* msg, int32_t timeout) {
   Message rpc_meta_msg;
   int send_id;
   auto status = Recv(&rpc_meta_msg, &send_id, timeout);
   if (status == QUEUE_EMPTY){
-    return false;
+    return rpc::RPCStatus::kRPCTimeOut;
   }
   CHECK_EQ(status, REMOVE_SUCCESS);
   char* count_ptr = rpc_meta_msg.data+rpc_meta_msg.size-sizeof(int32_t);
@@ -296,7 +296,7 @@ bool SocketReceiver::Recv(rpc::RPCMessage* msg, int32_t timeout) {
   StreamWithBuffer zc_read_strm(rpc_meta_msg.data, rpc_meta_msg.size-sizeof(int32_t), buffer_list);
   zc_read_strm.Read(msg);
   rpc_meta_msg.deallocator(&rpc_meta_msg);
-  return true;
+  return rpc::RPCStatus::kRPCSuccess;
 }
 
 STATUS SocketReceiver::Recv(Message* msg, int* send_id, int timeout) {

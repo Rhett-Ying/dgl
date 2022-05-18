@@ -162,8 +162,8 @@ def connect_to_server(ip_config, num_servers, max_queue_size=MAX_QUEUE_SIZE,
     machine_id = get_local_machine_id(server_namebook)
     rpc.set_machine_id(machine_id)
     rpc.set_group_id(group_id)
-    rpc.create_sender(max_queue_size, net_type)
-    rpc.create_receiver(max_queue_size, net_type)
+    rpc.create_sender(max_queue_size, net_type, inst_type='client')
+    rpc.create_receiver(max_queue_size, net_type, inst_type='client')
     # Get connected with all server nodes
     max_try_times = int(os.environ.get('DGL_DIST_MAX_TRY_TIMES', 1024))
     for server_id, addr in server_namebook.items():

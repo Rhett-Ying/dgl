@@ -110,6 +110,7 @@ struct RPCContext {
   int32_t group_id = -1;
   int32_t curr_client_id = -1;
   std::unordered_map<int32_t, std::unordered_map<int32_t, int32_t>> clients_;
+  std::string inst_type{"NotSet"};
 
   /*! \brief Get the RPC context singleton */
   static RPCContext* getInstance() {
@@ -133,6 +134,7 @@ struct RPCContext {
     t->ctx.reset();
     t->server_state.reset();
     t->group_id = -1;
+    t->inst_type = "";
     t->curr_client_id = -1;
     t->clients_.clear();
   }
@@ -156,12 +158,6 @@ struct RPCContext {
     }
     return m.at(client_id);
   }
-};
-
-/*! \brief RPC status flag */
-enum RPCStatus {
-  kRPCSuccess = 0,
-  kRPCTimeOut = 1,
 };
 
 /*!
