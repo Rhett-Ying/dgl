@@ -10,6 +10,8 @@
 #include <fstream>
 #include "rpc_msg.h"
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/syscall.h>
 
 namespace dgl {
 namespace rpc {
@@ -29,7 +31,7 @@ struct RPCBase {
   static std::string inst_type;
   static void TouchThreadInfo() {
     std::ofstream ofs("/root/debug_threads/t_" + inst_type + "_" +
-                      std::to_string(getpid()));
+                      std::to_string(syscall(__NR_gettid)));
     ofs << "Hello";
     ofs.close();
   }
