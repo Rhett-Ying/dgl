@@ -21,7 +21,7 @@ MessageQueue::MessageQueue(int64_t queue_size, int num_producers) {
   num_producers_ = num_producers;
 }
 
-STATUS MessageQueue::Add(Message msg, bool is_blocking) {
+STATUS MessageQueue::Add(Message& msg, bool is_blocking) {
   // check if message is too long to fit into the queue
   if (msg.size > queue_size_) {
     LOG(WARNING) << "Message is larger than the queue.";
@@ -73,6 +73,10 @@ STATUS MessageQueue::Remove(Message* msg, bool is_blocking) {
   msg->data = old_msg.data;
   msg->size = old_msg.size;
   msg->receiver_id = old_msg.receiver_id;
+  msg->server_id = old_msg.server_id;
+  msg->client_id = old_msg.client_id;
+  msg->msg_seq = old_msg.msg_seq;
+  msg->service_id = old_msg.service_id;
   msg->deallocator = old_msg.deallocator;
   free_size_ += old_msg.size;
   cond_not_full_.notify_one();

@@ -104,7 +104,7 @@ class SocketSender : public Sender {
    * (4) Messages sent to the same receiver are guaranteed to be received in the same order. 
    *     There is no guarantee for messages sent to different receivers.
    */
-  STATUS Send(Message msg, int recv_id) override;
+  STATUS Send(Message& msg, int recv_id) override;
 
  private:
   /*!

@@ -16,6 +16,7 @@
 #include <condition_variable>
 #include <atomic>
 #include <functional>
+#include <iostream>
 
 namespace dgl {
 namespace network {
@@ -60,6 +61,24 @@ struct Message {
    * \brief message receiver id
    */
   int receiver_id = -1;
+  int msg_seq = -1;
+  int server_id = -1;
+  int client_id = -1;
+  int service_id = -1;
+  friend std::ostream &operator<<(std::ostream &oss, const Message &msg) {
+    oss << "------------- Socket Internal Message ---- "
+        << " server_id:" << msg.server_id
+        << " client_id:"<<msg.client_id
+        << " receiver_id:" << msg.receiver_id << ", msg_seq:" << msg.msg_seq
+        << ", service_id:"<<msg.service_id;
+    return oss;
+  }
+  template <class RPCMessageT> void FillFromRPCMessage(const RPCMessageT &msg) {
+    server_id = msg.server_id;
+    client_id = msg.client_id;
+    msg_seq = msg.msg_seq;
+    service_id = msg.service_id;
+  }
   /*!
    * \brief user-defined deallocator, which can be nullptr
    */
@@ -107,7 +126,7 @@ class MessageQueue {
    * \param is_blocking Blocking if cannot add, else return
    * \return Status code
    */
-  STATUS Add(Message msg, bool is_blocking = true);
+  STATUS Add(Message& msg, bool is_blocking = true);
 
   /*!
    * \brief Remove message from the queue

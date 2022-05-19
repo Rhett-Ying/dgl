@@ -54,7 +54,7 @@ class Sender : public rpc::RPCSender {
    * (4) Messages sent to the same receiver are guaranteed to be received in the same order. 
    *     There is no guarantee for messages sent to different receivers.
    */
-  virtual STATUS Send(Message msg, int recv_id) = 0;
+  virtual STATUS Send(Message& msg, int recv_id) = 0;
 
  protected:
   /*!

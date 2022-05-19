@@ -113,6 +113,11 @@ rpc::RPCStatus SocketSender::Send(const rpc::RPCMessage& msg, int recv_id) {
   rpc_meta_msg.data = const_cast<char*>(zerocopy_blob->data());
   rpc_meta_msg.size = zerocopy_blob->size();
   rpc_meta_msg.deallocator = [zerocopy_blob](Message*) {};
+  rpc_meta_msg.FillFromRPCMessage(msg);
+  if (SocketSender::inst_type == "server") {
+    LOG(INFO) << "============ SocketSender::Send ======= Total sub-msg number:"
+              << zc_write_strm.buffer_list().size() + 1 << ", msg:" << msg;
+  }
   CHECK_EQ(Send(
     rpc_meta_msg, recv_id), ADD_SUCCESS);
   // send real ndarray data
@@ -125,13 +130,14 @@ rpc::RPCStatus SocketSender::Send(const rpc::RPCMessage& msg, int recv_id) {
     ndarray_data_msg.size = ptr.size;
     NDArray tensor = ptr.tensor;
     ndarray_data_msg.deallocator = [tensor](Message*) {};
+    ndarray_data_msg.FillFromRPCMessage(msg);
     CHECK_EQ(Send(
       ndarray_data_msg, recv_id), ADD_SUCCESS);
   }
   return rpc::RPCStatus::kRPCSuccess;
 }
 
-STATUS SocketSender::Send(Message msg, int recv_id) {
+STATUS SocketSender::Send(Message& msg, int recv_id) {
   CHECK_NOTNULL(msg.data);
   CHECK_GT(msg.size, 0);
   CHECK_GE(recv_id, 0);
@@ -165,7 +171,7 @@ void SocketSender::Finalize() {
   }
 }
 
-void SendCore(Message msg, TCPSocket* socket) {
+void SendCore(Message& msg, TCPSocket* socket, const std::string& inst_type="client"){
   // First send the size
   // If exit == true, we will send zero size to reciever
   int64_t sent_bytes = 0;
@@ -185,6 +191,10 @@ void SendCore(Message msg, TCPSocket* socket) {
     CHECK_NE(tmp, -1);
     sent_bytes += tmp;
   }
+  if (inst_type == "server") {
+    LOG(INFO) << "---------- Server Msg Sent within Sender::SendCore ---- "
+              << msg;
+  }
   // delete msg
   if (msg.deallocator != nullptr) {
     msg.deallocator(&msg);
@@ -200,11 +210,11 @@ void SocketSender::SendLoop(
     if (code == QUEUE_CLOSE) {
       msg.size = 0;  // send an end-signal to receiver
       for (auto& socket : sockets) {
-        SendCore(msg, socket.second.get());
+        SendCore(msg, socket.second.get(), SocketSender::inst_type);
       }
       break;
     }
-    SendCore(msg, sockets[msg.receiver_id].get());
+    SendCore(msg, sockets[msg.receiver_id].get(), SocketSender::inst_type);
   }
 }
 

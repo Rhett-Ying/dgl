@@ -124,6 +124,7 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCCreateSender")
   int64_t msg_queue_size = args[0];
   std::string type = args[1];
   int max_thread_count = args[2];
+  std::string inst_type = args[3];
   if (type == "tensorpipe") {
     InitGlobalTpContext();
     RPCContext::getInstance()->sender.reset(
@@ -134,6 +135,7 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCCreateSender")
   } else {
     LOG(FATAL) << "Unknown communicator type for rpc sender: " << type;
   }
+  RPCContext::getInstance()->sender->inst_type = inst_type;
   LOG(INFO) << "Sender with NetType~"
             << RPCContext::getInstance()->sender->NetType() << " is created.";
 });
@@ -155,6 +157,7 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCCreateReceiver")
   } else {
     LOG(FATAL) << "Unknown communicator type for rpc receiver: " << type;
   }
+  RPCContext::getInstance()->receiver->inst_type = inst_type;
   LOG(INFO) << "Receiver with NetType~"
             << RPCContext::getInstance()->receiver->NetType() << " is created for "
             << RPCContext::getInstance()->inst_type << ".";
@@ -594,6 +597,8 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCGetClient")
   const int32_t group_id = args[1];
   *rv = RPCContext::getInstance()->GetClient(client_id, group_id);
 });
+
+std::string RPCBase::inst_type = "NotSet";
 
 }  // namespace rpc
 }  // namespace dgl

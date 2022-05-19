@@ -24,6 +24,7 @@ struct RPCBase {
    * \brief Communicator type: 'socket', 'tensorpipe', etc
    */
   virtual const std::string &NetType() const = 0;
+  static std::string inst_type;
 };
 
 struct RPCSender : RPCBase {
