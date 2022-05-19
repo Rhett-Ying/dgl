@@ -66,8 +66,8 @@ def start_server(server_id, ip_config, num_servers, num_clients, server_state, \
     rpc.set_machine_id(machine_id)
     ip_addr = server_namebook[server_id][1]
     port = server_namebook[server_id][2]
-    rpc.create_sender(max_queue_size, net_type)
-    rpc.create_receiver(max_queue_size, net_type)
+    rpc.create_sender(max_queue_size, net_type, 'NoLogServer')
+    rpc.create_receiver(max_queue_size, net_type, 'NoLogServer')
     # wait all the senders connect to server.
     # Once all the senders connect to server, server will not
     # accept new sender's connection
