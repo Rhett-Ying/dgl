@@ -132,7 +132,7 @@ rpc::RPCStatus SocketSender::Send(const rpc::RPCMessage& msg, int recv_id) {
     }
     ndarray_data_msg.size = ptr.size;
     NDArray tensor = ptr.tensor;
-    ndarray_data_msg.deallocator = [tensor](Message*) {};
+    ndarray_data_msg.deallocator = [tensor](Message* msg) { msg->deallocator=nullptr;};
     ndarray_data_msg.FillFromRPCMessage(msg, ++sub_seq);
     CHECK_EQ(Send(
       ndarray_data_msg, recv_id), ADD_SUCCESS);
@@ -205,7 +205,6 @@ void SendCore(Message& msg, TCPSocket* socket, const std::string& inst_type="cli
   // delete msg
   if (msg.deallocator != nullptr) {
     msg.deallocator(&msg);
-    msg.deallocator = nullptr;
   }
 }
 
