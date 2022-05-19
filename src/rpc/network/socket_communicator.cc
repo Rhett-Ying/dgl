@@ -114,7 +114,7 @@ rpc::RPCStatus SocketSender::Send(const rpc::RPCMessage& msg, int recv_id) {
   Message rpc_meta_msg;
   rpc_meta_msg.data = const_cast<char*>(zerocopy_blob->data());
   rpc_meta_msg.size = zerocopy_blob->size();
-  rpc_meta_msg.deallocator = [zerocopy_blob](Message*) {};
+  rpc_meta_msg.deallocator = [zerocopy_blob](Message* msg) { msg->deallocator = nullptr;};
   int sub_seq = 0;
   rpc_meta_msg.FillFromRPCMessage(msg, ++sub_seq);
   if (SocketSender::inst_type == "server") {
@@ -126,13 +126,16 @@ rpc::RPCStatus SocketSender::Send(const rpc::RPCMessage& msg, int recv_id) {
   // send real ndarray data
   for (auto ptr : zc_write_strm.buffer_list()) {
     Message ndarray_data_msg;
+    auto reserved_data = new char[ptr.size];
+    std::memcpy(reserved_data, ptr.data, ptr.size);
     ndarray_data_msg.data = reinterpret_cast<char*>(ptr.data);
     if (ptr.size == 0) {
       LOG(FATAL) << "Cannot send a empty NDArray.";
     }
     ndarray_data_msg.size = ptr.size;
-    NDArray tensor = ptr.tensor;
-    ndarray_data_msg.deallocator = [tensor](Message* msg) { msg->deallocator=nullptr;};
+    ndarray_data_msg.deallocator = [reserved_data](Message* msg) { delete []reserved_data; msg->deallocator=nullptr;};
+    //NDArray tensor = ptr.tensor;
+    //ndarray_data_msg.deallocator = [tensor](Message* msg) { msg->deallocator=nullptr;};
     ndarray_data_msg.FillFromRPCMessage(msg, ++sub_seq);
     CHECK_EQ(Send(
       ndarray_data_msg, recv_id), ADD_SUCCESS);
