@@ -205,6 +205,7 @@ void SendCore(Message& msg, TCPSocket* socket, const std::string& inst_type="cli
   // delete msg
   if (msg.deallocator != nullptr) {
     msg.deallocator(&msg);
+    msg.deallocator = nullptr;
   }
 }
 
