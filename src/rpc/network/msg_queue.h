@@ -74,11 +74,12 @@ struct Message {
         << ", service_id:"<<msg.service_id;
     return oss;
   }
-  template <class RPCMessageT> void FillFromRPCMessage(const RPCMessageT &msg) {
+  template <class RPCMessageT> void FillFromRPCMessage(const RPCMessageT &msg, int sub_seq_) {
     server_id = msg.server_id;
     client_id = msg.client_id;
     msg_seq = msg.msg_seq;
     service_id = msg.service_id;
+    sub_seq = sub_seq_;
   }
   /*!
    * \brief user-defined deallocator, which can be nullptr

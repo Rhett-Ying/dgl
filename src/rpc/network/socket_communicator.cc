@@ -113,7 +113,8 @@ rpc::RPCStatus SocketSender::Send(const rpc::RPCMessage& msg, int recv_id) {
   rpc_meta_msg.data = const_cast<char*>(zerocopy_blob->data());
   rpc_meta_msg.size = zerocopy_blob->size();
   rpc_meta_msg.deallocator = [zerocopy_blob](Message*) {};
-  rpc_meta_msg.FillFromRPCMessage(msg);
+  int sub_seq = 0;
+  rpc_meta_msg.FillFromRPCMessage(msg, ++sub_seq);
   if (SocketSender::inst_type == "server") {
     LOG(INFO) << "== Socket::Send == TotalSub-msgNo:"
               << zc_write_strm.buffer_list().size() + 1 << ", msg:" << msg;
@@ -130,7 +131,7 @@ rpc::RPCStatus SocketSender::Send(const rpc::RPCMessage& msg, int recv_id) {
     ndarray_data_msg.size = ptr.size;
     NDArray tensor = ptr.tensor;
     ndarray_data_msg.deallocator = [tensor](Message*) {};
-    ndarray_data_msg.FillFromRPCMessage(msg);
+    ndarray_data_msg.FillFromRPCMessage(msg, ++sub_seq);
     CHECK_EQ(Send(
       ndarray_data_msg, recv_id), ADD_SUCCESS);
   }
@@ -174,6 +175,10 @@ void SocketSender::Finalize() {
 void SendCore(Message& msg, TCPSocket* socket, const std::string& inst_type="client"){
   // First send the size
   // If exit == true, we will send zero size to reciever
+  if (inst_type == "server") {
+    LOG(INFO) << "---- ServerSendCore Begins -- "
+              << msg;
+  }
   int64_t sent_bytes = 0;
   while (static_cast<size_t>(sent_bytes) < sizeof(int64_t)) {
     int64_t max_len = sizeof(int64_t) - sent_bytes;
@@ -192,7 +197,7 @@ void SendCore(Message& msg, TCPSocket* socket, const std::string& inst_type="cli
     sent_bytes += tmp;
   }
   if (inst_type == "server") {
-    LOG(INFO) << "---- ServerSentInSendCore -- "
+    LOG(INFO) << "---- ServerSendCore Ends -- "
               << msg;
   }
   // delete msg

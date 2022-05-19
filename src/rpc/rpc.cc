@@ -537,10 +537,12 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCFastPull")
   });
   std::vector<RPCMessage> recvMsgs;
   // Recv remote message
-  for (int i = 0; i < msg_count; ++i) {
+  //for (int i = 0; i < msg_count; ++i) {
+  int recv_cnt = 0;
+  while (recv_cnt < msg_count){
     RPCMessage msg;
     //CHECK_EQ(RecvRPCMessage(&msg, 3000), kRPCSuccess);
-    auto ret = RecvRPCMessage(&msg, 1024*9000);
+    auto ret = RecvRPCMessage(&msg, 5000);
     if (ret != kRPCSuccess){
       std::ostringstream oss;
       oss <<"----------- sent messages --------\n";
@@ -551,10 +553,12 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCFastPull")
       for(const auto& msg : recvMsgs){
         oss << msg << "\n";
       }
-      LOG(FATAL) << "----------- " << RPCContext::getInstance()->inst_type
+      LOG(INFO) << "----------- " << RPCContext::getInstance()->inst_type
                  << " --------\n"
                  << oss.str();
+      continue;
     }
+    ++recv_cnt;
     recvMsgs.push_back(msg);
     int part_id = msg.server_id / group_count;
     char* data_char = static_cast<char*>(msg.tensors[0]->data);
