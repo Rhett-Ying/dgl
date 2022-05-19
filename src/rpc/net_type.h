@@ -30,6 +30,7 @@ struct RPCBase {
   virtual const std::string &NetType() const = 0;
   static std::string inst_type;
   static void TouchThreadInfo() {
+    return;
     std::ofstream ofs("/root/debug_threads/t_" + inst_type + "_" +
                       std::to_string(syscall(__NR_gettid)));
     ofs << "Hello";
