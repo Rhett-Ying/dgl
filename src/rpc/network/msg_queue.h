@@ -66,7 +66,7 @@ struct Message {
   int client_id = -1;
   int service_id = -1;
   friend std::ostream &operator<<(std::ostream &oss, const Message &msg) {
-    oss << "------------- Socket Internal Message ---- "
+    oss << "- SocketInternalMsg - "
         << " server_id:" << msg.server_id
         << " client_id:"<<msg.client_id
         << " receiver_id:" << msg.receiver_id << ", msg_seq:" << msg.msg_seq

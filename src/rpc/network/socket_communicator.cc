@@ -115,7 +115,7 @@ rpc::RPCStatus SocketSender::Send(const rpc::RPCMessage& msg, int recv_id) {
   rpc_meta_msg.deallocator = [zerocopy_blob](Message*) {};
   rpc_meta_msg.FillFromRPCMessage(msg);
   if (SocketSender::inst_type == "server") {
-    LOG(INFO) << "============ SocketSender::Send ======= Total sub-msg number:"
+    LOG(INFO) << "== Socket::Send == TotalSub-msgNo:"
               << zc_write_strm.buffer_list().size() + 1 << ", msg:" << msg;
   }
   CHECK_EQ(Send(
@@ -192,7 +192,7 @@ void SendCore(Message& msg, TCPSocket* socket, const std::string& inst_type="cli
     sent_bytes += tmp;
   }
   if (inst_type == "server") {
-    LOG(INFO) << "---------- Server Msg Sent within Sender::SendCore ---- "
+    LOG(INFO) << "---- ServerSentInSendCore -- "
               << msg;
   }
   // delete msg
