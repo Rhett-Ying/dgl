@@ -20,6 +20,8 @@
 #include <windows.h>
 #else   // !_WIN32
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/syscall.h>
 #endif  // _WIN32
 
 namespace dgl {
@@ -215,12 +217,18 @@ void SocketSender::SendLoop(
     STATUS code = queue->Remove(&msg);
     if (code == QUEUE_CLOSE) {
       msg.size = 0;  // send an end-signal to receiver
+      if (inst_type == "server"){
+        LOG(INFO) << "---- server~ QUEUE_CLOSE --- " << msg;
+      }
       for (auto& socket : sockets) {
         SendCore(msg, socket.second.get(), SocketSender::inst_type);
       }
       break;
     }
     SendCore(msg, sockets[msg.receiver_id].get(), SocketSender::inst_type);
+    if (inst_type == "server"){
+      LOG(INFO)<<"--- Server~Remained queue size: " << queue->Size() << msg;
+    }
   }
 }
 

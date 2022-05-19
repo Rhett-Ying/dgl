@@ -542,7 +542,7 @@ DGL_REGISTER_GLOBAL("distributed.rpc._CAPI_DGLRPCFastPull")
   while (recv_cnt < msg_count){
     RPCMessage msg;
     //CHECK_EQ(RecvRPCMessage(&msg, 3000), kRPCSuccess);
-    auto ret = RecvRPCMessage(&msg, 5000);
+    auto ret = RecvRPCMessage(&msg, 10*1000);
     if (ret != kRPCSuccess){
       std::ostringstream oss;
       oss <<"----------- sent messages --------\n";

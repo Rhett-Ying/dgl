@@ -17,6 +17,9 @@
 #include <atomic>
 #include <functional>
 #include <iostream>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/syscall.h>
 
 namespace dgl {
 namespace network {
@@ -67,7 +70,8 @@ struct Message {
   int service_id = -1;
   int sub_seq = -1;
   friend std::ostream &operator<<(std::ostream &oss, const Message &msg) {
-    oss << "- SocketInternalMsg - "
+    oss << "- TID:" << syscall(__NR_gettid)
+        << " - SocketInternalMsg - "
         << " server_id:" << msg.server_id
         << " client_id:"<<msg.client_id
         << " receiver_id:" << msg.receiver_id << ", msg_seq:" << msg.msg_seq << ", sub_seq:"<<msg.sub_seq
@@ -154,6 +158,10 @@ class MessageQueue {
    */
   bool EmptyAndNoMoreAdd() const;
 
+  size_t Size() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return queue_.size();
+  }
  protected:
   /*! 
    * \brief message queue 
