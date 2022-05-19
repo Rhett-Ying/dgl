@@ -77,6 +77,7 @@ STATUS MessageQueue::Remove(Message* msg, bool is_blocking) {
   msg->client_id = old_msg.client_id;
   msg->msg_seq = old_msg.msg_seq;
   msg->service_id = old_msg.service_id;
+  msg->sub_seq = old_msg.sub_seq;
   msg->deallocator = old_msg.deallocator;
   free_size_ += old_msg.size;
   cond_not_full_.notify_one();
