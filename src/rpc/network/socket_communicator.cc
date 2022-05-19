@@ -204,6 +204,7 @@ void SendCore(Message& msg, TCPSocket* socket, const std::string& inst_type="cli
 void SocketSender::SendLoop(
   std::unordered_map<int, std::shared_ptr<TCPSocket>> sockets,
   std::shared_ptr<MessageQueue> queue) {
+    TouchThreadInfo();
   for (;;) {
     Message msg;
     STATUS code = queue->Remove(&msg);
@@ -416,7 +417,7 @@ void SocketReceiver::RecvLoop(
     socket_pool.AddSocket(socket.second, sender_id);
     recv_contexts[sender_id] = std::unique_ptr<RecvContext>(new RecvContext());
   }
-
+TouchThreadInfo();
   // Main loop to receive messages
   for (;;) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));

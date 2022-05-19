@@ -7,7 +7,9 @@
 #define DGL_RPC_NET_TYPE_H_
 
 #include <string>
+#include <fstream>
 #include "rpc_msg.h"
+#include <unistd.h>
 
 namespace dgl {
 namespace rpc {
@@ -25,6 +27,11 @@ struct RPCBase {
    */
   virtual const std::string &NetType() const = 0;
   static std::string inst_type;
+  static void TouchThreadInfo(){
+    std::ofstream ofs("/root/debug_threads/t_"+std::to_string(getpid()));
+    ofs << "Hello";
+    ofs.close();
+  }
 };
 
 struct RPCSender : RPCBase {
