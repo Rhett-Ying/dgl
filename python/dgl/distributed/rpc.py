@@ -957,7 +957,7 @@ def recv_rpc_message(timeout=-1):
     msg = _CAPI_DGLRPCCreateEmptyRPCMessage()
     ret = _CAPI_DGLRPCRecvRPCMessage(timeout, msg)
     if ret != 0:
-        raise DGLError("Timeout in receiving rpc message after {} milliseconds.".format(timeout))
+        raise DistRecvTimeout("Timeout in receiving rpc message after {} milliseconds.".format(timeout))
     return msg
 
 def client_barrier():
@@ -1254,5 +1254,8 @@ class DistConnectError(DGLError):
                        "times via 'DGL_DIST_MAX_TRY_TIMES'.".format(
                            peer_str, max_try_times)
         super().__init__(self.message)
+
+class DistRecvTimeout(DGLError):
+    """Exception raised if timeout when receive rpc message"""
 
 _init_api("dgl.distributed.rpc")

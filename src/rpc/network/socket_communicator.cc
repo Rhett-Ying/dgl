@@ -127,21 +127,24 @@ rpc::RPCStatus SocketSender::Send(const rpc::RPCMessage& msg, int recv_id) {
   for (auto ptr : zc_write_strm.buffer_list()) {
     Message ndarray_data_msg;
 
+/*
     // deep copy
     auto reserved_data = new char[ptr.size];
     std::memcpy(reserved_data, ptr.data, ptr.size);
     ndarray_data_msg.data = reserved_data;
+*/
 
-    //ndarray_data_msg.data = reinterpret_cast<char*>(ptr.data);
+    ndarray_data_msg.data = reinterpret_cast<char*>(ptr.data);
     if (ptr.size == 0) {
       LOG(FATAL) << "Cannot send a empty NDArray.";
     }
     ndarray_data_msg.size = ptr.size;
   
-    ndarray_data_msg.deallocator = [reserved_data](Message* msg) { delete []reserved_data; msg->deallocator=nullptr;};
+    // deep copy
+    //ndarray_data_msg.deallocator = [reserved_data](Message* msg) { delete []reserved_data; msg->deallocator=nullptr;};
     
-    //NDArray tensor = ptr.tensor;
-    //ndarray_data_msg.deallocator = [tensor](Message* msg) { msg->deallocator=nullptr;};
+    NDArray tensor = ptr.tensor;
+    ndarray_data_msg.deallocator = [tensor](Message* msg) { msg->deallocator=nullptr;};
 
     ndarray_data_msg.FillFromRPCMessage(msg, ++sub_seq);
     CHECK_EQ(Send(
