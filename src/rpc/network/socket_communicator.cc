@@ -116,15 +116,19 @@ void SocketSender::Send(const rpc::RPCMessage& msg, int recv_id) {
   // send real ndarray data
   for (auto ptr : zc_write_strm.buffer_list()) {
     Message ndarray_data_msg;
-    ndarray_data_msg.data = reinterpret_cast<char*>(ptr.data);
     if (ptr.size == 0) {
       LOG(FATAL) << "Cannot send a empty NDArray.";
     }
     ndarray_data_msg.size = ptr.size;
-    NDArray tensor = ptr.tensor;
-    ndarray_data_msg.deallocator = [tensor](Message*) {};
-    CHECK_EQ(Send(
-      ndarray_data_msg, recv_id), ADD_SUCCESS);
+    // deep copy to avoid GIL race condition
+    auto reserved_data = new char[ptr.size];
+    std::memcpy(reserved_data, ptr.data, ptr.size);
+    ndarray_data_msg.data = reserved_data;
+    ndarray_data_msg.deallocator = [reserved_data](Message *msg) {
+      delete[] reserved_data;
+      msg->deallocator = nullptr;
+    };
+    CHECK_EQ(Send(ndarray_data_msg, recv_id), ADD_SUCCESS);
   }
 }
 
