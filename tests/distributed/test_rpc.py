@@ -1,6 +1,6 @@
 import os
 import time
-import socket
+import psutil
 
 import dgl
 import backend as F
@@ -17,6 +17,7 @@ INTEGER = 2
 STR = 'hello world!'
 HELLO_SERVICE_ID = 901231
 TENSOR = F.zeros((1000, 1000), F.int64, F.cpu())
+SMALL_TENSOR = F.zeros((10, 100), F.int64, F.cpu())
 
 def foo(x, y):
     assert x == 123
@@ -83,6 +84,41 @@ class HelloRequest(dgl.distributed.Request):
         res = HelloResponse(self.hello_str, self.integer, new_tensor)
         return res
 
+MANY_TENSORS_SERVICE_ID = 123456789
+
+class ManyTensorsResponse(dgl.distributed.Response):
+    def __init__(self, meta_msg, tensor, num_tensors):
+        self.meta_msg = meta_msg
+        self.tensor = tensor
+        self.num_tensors = num_tensors
+
+    def __getstate__(self):
+        data = list()
+        data.append(self.meta_msg)
+        for i in range(self.num_tensors):
+            data.append(self.tensor + i)
+        return tuple(data)
+
+    def __setstate__(self, state):
+        data = list(state)
+        self.meta_msg, self.tensor, self.num_tensors = data[0], data[1], len(data) - 1
+
+class ManyTensorsRequest(dgl.distributed.Request):
+    def __init__(self, meta_msg, tensor, num_tensors):
+        self.meta_msg = meta_msg
+        self.tensor = tensor
+        self.num_tensors = num_tensors
+
+    def __getstate__(self):
+        return self.meta_msg, self.tensor, self.num_tensors
+
+    def __setstate__(self, state):
+        self.meta_msg, self.tensor, self.num_tensors = state
+
+    def process_request(self, server_state):
+        res = ManyTensorsResponse(self.meta_msg, self.tensor, self.num_tensors)
+        return res
+
 def start_server(num_clients, ip_config, server_id=0, keep_alive=False, num_servers=1, net_type='tensorpipe'):
     print("Sleep 1 seconds to test client re-connect.")
     time.sleep(1)
@@ -90,6 +126,8 @@ def start_server(num_clients, ip_config, server_id=0, keep_alive=False, num_serv
         None, local_g=None, partition_book=None, keep_alive=keep_alive)
     dgl.distributed.register_service(
         HELLO_SERVICE_ID, HelloRequest, HelloResponse)
+    dgl.distributed.register_service(
+        MANY_TENSORS_SERVICE_ID, ManyTensorsRequest, ManyTensorsResponse)
     print("Start server {}".format(server_id))
     dgl.distributed.start_server(server_id=server_id, 
                                  ip_config=ip_config, 
@@ -133,6 +171,51 @@ def start_client(ip_config, group_id=0, num_servers=1, net_type='tensorpipe'):
         assert res.hello_str == STR
         assert res.integer == INTEGER
         assert_array_equal(F.asnumpy(res.tensor), F.asnumpy(TENSOR))
+
+def start_client_many_tensors(ip_config, group_id=0, num_servers=1, net_type='tensorpipe'):
+    dgl.distributed.register_service(
+        MANY_TENSORS_SERVICE_ID, ManyTensorsRequest, ManyTensorsResponse)
+    dgl.distributed.connect_to_server(
+        ip_config=ip_config, num_servers=num_servers, group_id=group_id, net_type=net_type)
+    meta_msg = 'Many_Tensors'
+    num_tensors = 100
+    req = ManyTensorsRequest(meta_msg, SMALL_TENSOR, num_tensors)
+    # test send and recv
+    start_time = time.time()
+    for i in range(10 * 1000):
+        dgl.distributed.send_request(0, req)
+        res = dgl.distributed.recv_response()
+        assert res.meta_msg == meta_msg, "Expected:{}, Actual:{}".format(
+            meta_msg, res.meta_msg)
+        assert res.num_tensors == num_tensors
+        assert_array_equal(F.asnumpy(res.tensor), F.asnumpy(SMALL_TENSOR))
+        if dgl.distributed.get_rank() == 0 and (i+1) % 100 == 0:
+            print("Have sent and received {} messages within {:.4f} seconds".format(
+                i + 1, time.time() - start_time))
+            start_time = time.time()
+        dgl.distributed.client_barrier()
+
+@unittest.skipIf(os.name == 'nt', reason='Do not support windows yet')
+@pytest.mark.parametrize("net_type", ['socket', 'tensorpipe'])
+def test_multi_client_many_tensors(net_type):
+    reset_envs()
+    os.environ['DGL_DIST_MODE'] = 'distributed'
+    ip_config = "rpc_ip_config_mul_client.txt"
+    generate_ip_config(ip_config, 1, 1)
+    ctx = mp.get_context('spawn')
+    num_clients = max(int(psutil.cpu_count() * 0.4), 1)
+    pserver = ctx.Process(target=start_server, args=(
+        num_clients, ip_config, 0, False, 1, net_type))
+    pclient_list = []
+    for i in range(num_clients):
+        pclient = ctx.Process(target=start_client_many_tensors, args=(ip_config, 0, 1, net_type))
+        pclient_list.append(pclient)
+    pserver.start()
+    for i in range(num_clients):
+        pclient_list[i].start()
+    for i in range(num_clients):
+        pclient_list[i].join()
+    pserver.join()
 
 def test_serialize():
     reset_envs()
