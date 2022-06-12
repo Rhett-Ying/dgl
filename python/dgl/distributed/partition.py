@@ -115,6 +115,7 @@ def load_partition(part_config, part_id):
     gpb, graph_name, ntypes, etypes = load_partition_book(part_config, part_id, graph)
     ntypes_list, etypes_list = [], []
     for ntype in ntypes:
+        '''
         ntype_id = ntypes[ntype]
         # graph.ndata[NID] are global homogeneous node IDs.
         nids = F.boolean_mask(graph.ndata[NID], _get_inner_node_mask(graph, ntype_id))
@@ -123,8 +124,10 @@ def load_partition(part_config, part_id):
         partids2 = gpb.nid2partid(per_type_nids, ntype)
         assert np.all(F.asnumpy(partids1 == part_id)), 'load a wrong partition'
         assert np.all(F.asnumpy(partids2 == part_id)), 'load a wrong partition'
+        '''
         ntypes_list.append(ntype)
     for etype in etypes:
+        '''
         etype_id = etypes[etype]
         # graph.edata[EID] are global homogeneous edge IDs.
         eids = F.boolean_mask(graph.edata[EID], _get_inner_edge_mask(graph, etype_id))
@@ -133,6 +136,7 @@ def load_partition(part_config, part_id):
         partids2 = gpb.eid2partid(per_type_eids, etype)
         assert np.all(F.asnumpy(partids1 == part_id)), 'load a wrong partition'
         assert np.all(F.asnumpy(partids2 == part_id)), 'load a wrong partition'
+        '''
         etypes_list.append(etype)
     return graph, node_feats, edge_feats, gpb, graph_name, ntypes_list, etypes_list
 
