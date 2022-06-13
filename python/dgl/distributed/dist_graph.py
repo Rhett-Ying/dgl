@@ -336,11 +336,15 @@ class DistGraphServer(KVServer):
                     ntypes, etypes = load_partition(part_config, self.part_id)
             print('load ' + graph_name)
             # Create the graph formats specified the users.
+            print('---rying_dgl Start to create formats on server {} for part {}'.format(self.server_id, self.part_id))
             self.client_g = self.client_g.formats(graph_format)
             self.client_g.create_formats_()
             if not disable_shared_mem:
                 self.client_g = _copy_graph_to_shared_mem(self.client_g, graph_name, graph_format)
+            print('---rying_dgl Finish to create formats on server {} for part {}'.format(self.server_id, self.part_id))
 
+        print('---rying_dgl Finished loading partition on server {} for part {}, is_backup: {}'.format(
+            self.server_id, self.part_id, self.is_backup_server()))
         if not disable_shared_mem:
             self.gpb.shared_memory(graph_name)
         assert self.gpb.partid == self.part_id
@@ -352,7 +356,8 @@ class DistGraphServer(KVServer):
             self.add_part_policy(PartitionPolicy(edge_name.policy_str, self.gpb))
 
         if not self.is_backup_server():
-            for name in node_feats:
+            print('---rying_dgl Start to load feat on server {} for part {}'.format(self.server_id, self.part_id))
+            for name in list(node_feats):
                 # The feature name has the following format: node_type + "/" + feature_name to avoid
                 # feature name collision for different node types.
                 ntype, feat_name = name.split('/')
@@ -360,7 +365,8 @@ class DistGraphServer(KVServer):
                 self.init_data(name=str(data_name), policy_str=data_name.policy_str,
                                data_tensor=node_feats[name])
                 self.orig_data.add(str(data_name))
-            for name in edge_feats:
+                del node_feats[name]
+            for name in list(edge_feats):
                 # The feature name has the following format: edge_type + "/" + feature_name to avoid
                 # feature name collision for different edge types.
                 etype, feat_name = name.split('/')
@@ -368,6 +374,8 @@ class DistGraphServer(KVServer):
                 self.init_data(name=str(data_name), policy_str=data_name.policy_str,
                                data_tensor=edge_feats[name])
                 self.orig_data.add(str(data_name))
+                del edge_feats[name]
+            print('---rying_dgl Finish loading feat on server {} for part {}'.format(self.server_id, self.part_id))
 
     def start(self):
         """ Start graph store server.
