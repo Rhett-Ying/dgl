@@ -76,23 +76,23 @@ def _copy_graph_to_shared_mem(g, graph_name, graph_format, part_id=-1):
     # in the KVStore because some of the node/edge data may be duplicated.
     new_g.ndata['inner_node'] = _to_shared_mem(g.ndata['inner_node'],
                                                _get_ndata_path(graph_name, 'inner_node'))
-    del g.ndata['inner_node']
+    #del g.ndata['inner_node']
     print("----rying_dgl part~{} _copy_graph_to_shared_mem ------- 2".format(part_id))
     new_g.ndata[NID] = _to_shared_mem(g.ndata[NID], _get_ndata_path(graph_name, NID))
-    del g.ndata[NID]
+    #del g.ndata[NID]
     print("----rying_dgl part~{} _copy_graph_to_shared_mem ------- 3".format(part_id))
     new_g.edata['inner_edge'] = _to_shared_mem(g.edata['inner_edge'],
                                                _get_edata_path(graph_name, 'inner_edge'))
-    del g.edata['inner_edge']
+    #del g.edata['inner_edge']
     print("----rying_dgl part~{} _copy_graph_to_shared_mem ------- 4".format(part_id))
     new_g.edata[EID] = _to_shared_mem(g.edata[EID], _get_edata_path(graph_name, EID))
-    del g.edata[EID]
+    #del g.edata[EID]
     print("----rying_dgl part~{} _copy_graph_to_shared_mem ------- 5".format(part_id))
     # for heterogeneous graph, we need to put ETYPE into KVStore
     # for homogeneous graph, ETYPE does not exist
     if ETYPE in g.edata:
         new_g.edata[ETYPE] = _to_shared_mem(g.edata[ETYPE], _get_edata_path(graph_name, ETYPE))
-        del g.edata[ETYPE]
+        #del g.edata[ETYPE]
         print("----rying_dgl part~{} _copy_graph_to_shared_mem ------- 6".format(part_id))
     print("----rying_dgl part~{} _copy_graph_to_shared_mem ------- 7".format(part_id))
     return new_g
@@ -384,7 +384,7 @@ class DistGraphServer(KVServer):
                 self.init_data(name=str(data_name), policy_str=data_name.policy_str,
                                data_tensor=node_feats[name])
                 self.orig_data.add(str(data_name))
-                del node_feats[name]
+                #del node_feats[name]
             for name in list(edge_feats):
                 # The feature name has the following format: edge_type + "/" + feature_name to avoid
                 # feature name collision for different edge types.
@@ -393,7 +393,7 @@ class DistGraphServer(KVServer):
                 self.init_data(name=str(data_name), policy_str=data_name.policy_str,
                                data_tensor=edge_feats[name])
                 self.orig_data.add(str(data_name))
-                del edge_feats[name]
+                #del edge_feats[name]
             print('---rying_dgl Finish loading feat on server {} for part {}'.format(self.server_id, self.part_id))
 
     def start(self):
