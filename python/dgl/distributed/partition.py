@@ -42,7 +42,7 @@ def _get_part_ranges(id_ranges):
         res[key] = np.concatenate([np.array(l) for l in id_ranges[key]]).reshape(-1, 2)
     return res
 
-def load_partition(part_config, part_id, graph_format=None):
+def load_partition(part_config, part_id, graph_format=None, load_feat=True):
     ''' Load data of a partition from the data path.
 
     A partition data includes a graph structure of the partition, a dict of node tensors,
@@ -94,8 +94,12 @@ def load_partition(part_config, part_id, graph_format=None):
         graph = graph.formats(graph_format)
         graph.create_formats_()
     print("----rying_dgl done for create formats part~{}".format(part_id))
-    node_feats = load_tensors(relative_to_config(part_files['node_feats']))
-    edge_feats = load_tensors(relative_to_config(part_files['edge_feats']))
+    if load_feat:
+        node_feats = load_tensors(relative_to_config(part_files['node_feats']))
+        edge_feats = load_tensors(relative_to_config(part_files['edge_feats']))
+    else:
+        node_feats = {}
+        edge_feats = {}
 
     # In the old format, the feature name doesn't contain node/edge type.
     # For compatibility, let's add node/edge types to the feature names.
@@ -144,6 +148,77 @@ def load_partition(part_config, part_id, graph_format=None):
         '''
         etypes_list.append(etype)
     return graph, node_feats, edge_feats, gpb, graph_name, ntypes_list, etypes_list
+
+
+def load_partition_feat(part_config, part_id, graph_format=None):
+    ''' Load data of a partition from the data path.
+
+    A partition data includes a graph structure of the partition, a dict of node tensors,
+    a dict of edge tensors and some metadata. The partition may contain the HALO nodes,
+    which are the nodes replicated from other partitions. However, the dict of node tensors
+    only contains the node data that belongs to the local partition. Similarly, edge tensors
+    only contains the edge data that belongs to the local partition. The metadata include
+    the information of the global graph (not the local partition), which includes the number
+    of nodes, the number of edges as well as the node assignment of the global graph.
+
+    The function currently loads data through the local filesystem interface.
+
+    Parameters
+    ----------
+    part_config : str
+        The path of the partition config file.
+    part_id : int
+        The partition ID.
+
+    Returns
+    -------
+    DGLGraph
+        The graph partition structure.
+    Dict[str, Tensor]
+        Node features.
+    Dict[str, Tensor]
+        Edge features.
+    GraphPartitionBook
+        The graph partition information.
+    str
+        The graph name
+    List[str]
+        The node types
+    List[str]
+        The edge types
+    '''
+    config_path = os.path.dirname(part_config)
+    relative_to_config = lambda path: os.path.join(config_path, path)
+
+    with open(part_config) as conf_f:
+        part_metadata = json.load(conf_f)
+    assert 'part-{}'.format(part_id) in part_metadata, "part-{} does not exist".format(part_id)
+    part_files = part_metadata['part-{}'.format(part_id)]
+    assert 'node_feats' in part_files, "the partition does not contain node features."
+    assert 'edge_feats' in part_files, "the partition does not contain edge feature."
+    assert 'part_graph' in part_files, "the partition does not contain graph structure."
+    
+    node_feats = load_tensors(relative_to_config(part_files['node_feats']))
+    edge_feats = load_tensors(relative_to_config(part_files['edge_feats']))
+
+    # In the old format, the feature name doesn't contain node/edge type.
+    # For compatibility, let's add node/edge types to the feature names.
+    node_feats1 = {}
+    edge_feats1 = {}
+    for name in node_feats:
+        feat = node_feats[name]
+        if name.find('/') == -1:
+            name = '_N/' + name
+        node_feats1[name] = feat
+    for name in edge_feats:
+        feat = edge_feats[name]
+        if name.find('/') == -1:
+            name = '_E/' + name
+        edge_feats1[name] = feat
+    node_feats = node_feats1
+    edge_feats = edge_feats1
+
+    return node_feats, edge_feats
 
 def load_partition_book(part_config, part_id, graph=None):
     ''' Load a graph partition book from the partition config file.

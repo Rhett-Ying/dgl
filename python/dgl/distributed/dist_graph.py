@@ -17,7 +17,7 @@ from .kvstore import KVServer, get_kvstore
 from .._ffi.ndarray import empty_shared_mem
 from ..ndarray import exist_shared_mem_array
 from ..frame import infer_scheme
-from .partition import load_partition, load_partition_book
+from .partition import load_partition, load_partition_book, load_partition_feat
 from .graph_partition_book import PartitionPolicy, get_shared_mem_partition_book
 from .graph_partition_book import HeteroDataName, parse_hetero_data_name
 from .graph_partition_book import NodePartitionPolicy, EdgePartitionPolicy
@@ -345,7 +345,7 @@ class DistGraphServer(KVServer):
             self.client_g = None
         else:
             self.client_g, node_feats, edge_feats, self.gpb, graph_name, \
-                    ntypes, etypes = load_partition(part_config, self.part_id, graph_format=graph_format)
+                    ntypes, etypes = load_partition(part_config, self.part_id, graph_format=graph_format, load_feat=False)
             print('load ' + graph_name)
             print("---- load {} on server~{} for part~{}, num_nodes:{}, num_edges:{}".format(graph_name,
                   self.server_id, self.part_id, self.client_g.num_nodes(), self.client_g.num_edges()))
@@ -357,6 +357,8 @@ class DistGraphServer(KVServer):
             if not disable_shared_mem:
                 self.client_g = _copy_graph_to_shared_mem(self.client_g, graph_name, graph_format, part_id=self.part_id)
             print('---rying_dgl Finish to copy graph to shm on server {} for part {}'.format(self.server_id, self.part_id))
+            node_feats, edge_feats = load_partition_feat(part_config, self.part_id, graph_format=graph_format)
+            print('---rying_dgl Finish to load_partition_feat on server {} for part {}'.format(self.server_id, self.part_id))
 
         print('---rying_dgl Finished loading partition on server {} for part {}, is_backup: {}'.format(
             self.server_id, self.part_id, self.is_backup_server()))
