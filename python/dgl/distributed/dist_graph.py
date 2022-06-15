@@ -31,6 +31,7 @@ from .graph_services import find_edges as dist_find_edges
 from .graph_services import out_degrees as dist_out_degrees
 from .graph_services import in_degrees as dist_in_degrees
 from .dist_tensor import DistTensor
+import gc
 
 INIT_GRAPH = 800001
 
@@ -357,6 +358,7 @@ class DistGraphServer(KVServer):
             if not disable_shared_mem:
                 self.client_g = _copy_graph_to_shared_mem(self.client_g, graph_name, graph_format, part_id=self.part_id)
             print('---rying_dgl Finish to copy graph to shm on server {} for part {}'.format(self.server_id, self.part_id))
+            gc.collect()
             node_feats, edge_feats = load_partition_feat(part_config, self.part_id, graph_format=graph_format)
             print('---rying_dgl Finish to load_partition_feat on server {} for part {}'.format(self.server_id, self.part_id))
 
