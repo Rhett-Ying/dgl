@@ -67,21 +67,33 @@ class InitGraphResponse(rpc.Response):
     def __setstate__(self, state):
         self._graph_name = state
 
-def _copy_graph_to_shared_mem(g, graph_name, graph_format):
+def _copy_graph_to_shared_mem(g, graph_name, graph_format, part_id=-1):
+    print("----rying_dgl part~{} _copy_graph_to_shared_mem ------- 0".format(part_id))
     new_g = g.shared_memory(graph_name, formats=graph_format)
+    print("----rying_dgl part~{} _copy_graph_to_shared_mem ------- 1".format(part_id))
     # We should share the node/edge data to the client explicitly instead of putting them
     # in the KVStore because some of the node/edge data may be duplicated.
     new_g.ndata['inner_node'] = _to_shared_mem(g.ndata['inner_node'],
                                                _get_ndata_path(graph_name, 'inner_node'))
+    del g.ndata['inner_node']
+    print("----rying_dgl part~{} _copy_graph_to_shared_mem ------- 2".format(part_id))
     new_g.ndata[NID] = _to_shared_mem(g.ndata[NID], _get_ndata_path(graph_name, NID))
-
+    del g.ndata[NID]
+    print("----rying_dgl part~{} _copy_graph_to_shared_mem ------- 3".format(part_id))
     new_g.edata['inner_edge'] = _to_shared_mem(g.edata['inner_edge'],
                                                _get_edata_path(graph_name, 'inner_edge'))
+    del g.edata['inner_edge']
+    print("----rying_dgl part~{} _copy_graph_to_shared_mem ------- 4".format(part_id))
     new_g.edata[EID] = _to_shared_mem(g.edata[EID], _get_edata_path(graph_name, EID))
+    del g.edata[EID]
+    print("----rying_dgl part~{} _copy_graph_to_shared_mem ------- 5".format(part_id))
     # for heterogeneous graph, we need to put ETYPE into KVStore
     # for homogeneous graph, ETYPE does not exist
     if ETYPE in g.edata:
         new_g.edata[ETYPE] = _to_shared_mem(g.edata[ETYPE], _get_edata_path(graph_name, ETYPE))
+        del g.edata[ETYPE]
+        print("----rying_dgl part~{} _copy_graph_to_shared_mem ------- 6".format(part_id))
+    print("----rying_dgl part~{} _copy_graph_to_shared_mem ------- 7".format(part_id))
     return new_g
 
 FIELD_DICT = {'inner_node': F.int32,    # A flag indicates whether the node is inside a partition.
@@ -335,14 +347,15 @@ class DistGraphServer(KVServer):
             self.client_g, node_feats, edge_feats, self.gpb, graph_name, \
                     ntypes, etypes = load_partition(part_config, self.part_id, graph_format=graph_format)
             print('load ' + graph_name)
-            print("---- load {} on server~{} for part~{}".format(graph_name, self.server_id, self.part_id))
+            print("---- load {} on server~{} for part~{}, num_nodes:{}, num_edges:{}".format(graph_name,
+                  self.server_id, self.part_id, self.client_g.num_nodes(), self.client_g.num_edges()))
             # Create the graph formats specified the users.
             #print('---rying_dgl Start to create formats on server {} for part {}'.format(self.server_id, self.part_id))
             #self.client_g = self.client_g.formats(graph_format)
             #self.client_g.create_formats_()
             #print('---rying_dgl Finish to create formats on server {} for part {}'.format(self.server_id, self.part_id))
             if not disable_shared_mem:
-                self.client_g = _copy_graph_to_shared_mem(self.client_g, graph_name, graph_format)
+                self.client_g = _copy_graph_to_shared_mem(self.client_g, graph_name, graph_format, part_id=self.part_id)
             print('---rying_dgl Finish to copy graph to shm on server {} for part {}'.format(self.server_id, self.part_id))
 
         print('---rying_dgl Finished loading partition on server {} for part {}, is_backup: {}'.format(
