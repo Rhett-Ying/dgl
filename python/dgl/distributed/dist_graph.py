@@ -333,15 +333,17 @@ class DistGraphServer(KVServer):
             self.client_g = None
         else:
             self.client_g, node_feats, edge_feats, self.gpb, graph_name, \
-                    ntypes, etypes = load_partition(part_config, self.part_id)
+                    ntypes, etypes = load_partition(part_config, self.part_id, graph_format=graph_format)
             print('load ' + graph_name)
+            print("---- load {} on server~{} for part~{}".format(graph_name, self.server_id, self.part_id))
             # Create the graph formats specified the users.
-            print('---rying_dgl Start to create formats on server {} for part {}'.format(self.server_id, self.part_id))
-            self.client_g = self.client_g.formats(graph_format)
-            self.client_g.create_formats_()
+            #print('---rying_dgl Start to create formats on server {} for part {}'.format(self.server_id, self.part_id))
+            #self.client_g = self.client_g.formats(graph_format)
+            #self.client_g.create_formats_()
+            #print('---rying_dgl Finish to create formats on server {} for part {}'.format(self.server_id, self.part_id))
             if not disable_shared_mem:
                 self.client_g = _copy_graph_to_shared_mem(self.client_g, graph_name, graph_format)
-            print('---rying_dgl Finish to create formats on server {} for part {}'.format(self.server_id, self.part_id))
+            print('---rying_dgl Finish to copy graph to shm on server {} for part {}'.format(self.server_id, self.part_id))
 
         print('---rying_dgl Finished loading partition on server {} for part {}, is_backup: {}'.format(
             self.server_id, self.part_id, self.is_backup_server()))

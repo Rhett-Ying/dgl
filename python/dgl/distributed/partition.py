@@ -42,7 +42,7 @@ def _get_part_ranges(id_ranges):
         res[key] = np.concatenate([np.array(l) for l in id_ranges[key]]).reshape(-1, 2)
     return res
 
-def load_partition(part_config, part_id):
+def load_partition(part_config, part_id, graph_format=None):
     ''' Load data of a partition from the data path.
 
     A partition data includes a graph structure of the partition, a dict of node tensors,
@@ -89,9 +89,14 @@ def load_partition(part_config, part_id):
     assert 'node_feats' in part_files, "the partition does not contain node features."
     assert 'edge_feats' in part_files, "the partition does not contain edge feature."
     assert 'part_graph' in part_files, "the partition does not contain graph structure."
+    graph = load_graphs(relative_to_config(part_files['part_graph']))[0][0]
+    if graph_format:
+        graph = graph.formats(graph_format)
+        graph.create_formats_()
+    print("----rying_dgl done for create formats part~{}".format(part_id))
     node_feats = load_tensors(relative_to_config(part_files['node_feats']))
     edge_feats = load_tensors(relative_to_config(part_files['edge_feats']))
-    graph = load_graphs(relative_to_config(part_files['part_graph']))[0][0]
+
     # In the old format, the feature name doesn't contain node/edge type.
     # For compatibility, let's add node/edge types to the feature names.
     node_feats1 = {}
