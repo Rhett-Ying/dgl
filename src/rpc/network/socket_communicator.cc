@@ -291,7 +291,7 @@ rpc::RPCStatus SocketReceiver::Recv(rpc::RPCMessage* msg, int timeout) {
   std::vector<void*> buffer_list(nonempty_ndarray_count);
   for (int i = 0; i < nonempty_ndarray_count; ++i) {
     Message ndarray_data_msg;
-    status = RecvFrom(&ndarray_data_msg, send_id, timeout);
+    status = RecvFrom(&ndarray_data_msg, send_id, 0/*timeout*/);
     if (status == QUEUE_EMPTY) {
       // As we cannot handle this timeout for now, let's treat it as fatal
       // error.
