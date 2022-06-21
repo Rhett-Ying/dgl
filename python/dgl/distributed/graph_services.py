@@ -350,6 +350,7 @@ def _distributed_access(g, nodes, issue_remote_req, local_access):
     DGLHeteroGraph
         The subgraph that contains the neighborhoods of all input nodes.
     '''
+    str = "-------- Rhett~_distributed_access, rank~{}, part_id~{}, nodes.shape:{}".format(g.rank(), g.get_partition_book().partid(), nodes.shape)
     req_list = []
     partition_book = g.get_partition_book()
     nodes = toindex(nodes).tousertensor()
@@ -384,7 +385,13 @@ def _distributed_access(g, nodes, issue_remote_req, local_access):
         results = recv_responses(msgseq2pos)
         res_list.extend(results)
 
+    cnt = 0;
+    str += " res_list: "
+    for res in res_list:
+        cnt += 1
+        str += " cnt~{}, len(src):{}, len(dst):{}, len(eids):{}".format(cnt, len(res.global_src), len(res.global_dst), len(res.global_eids))
     sampled_graph = merge_graphs(res_list, g.number_of_nodes())
+    str += " sampled_graph:{}, is_multigraph:{}".format(sampled_graph, sampled_graph.is_multigraph)
     return sampled_graph
 
 def _frontier_to_heterogeneous_graph(g, frontier, gpb):
@@ -480,6 +487,11 @@ def sample_etype_neighbors(g, nodes, etype_field, fanout, edge_dir='in', prob=No
     DGLGraph
         A sampled subgraph containing only the sampled neighboring edges.  It is on CPU.
     """
+    nodes, etype_field, fanout
+    str = "------- Rhett~sample_etype_neighbors: rank~{}, part_id~{}".format(g.rank(), g.get_partition_book().partid())
+    for ntype in nodes:
+        str += " ntype:{}, shape:{}".format(ntype, nodes[ntype].shape)
+    print("------- Rhett~sample_etype_neighbors: {}, etype_field:{}, fanout:{}".format(str, etype_field, fanout))
     if isinstance(fanout, int):
         fanout = F.full_1d(len(g.etypes), fanout, F.int64, F.cpu())
     else:
