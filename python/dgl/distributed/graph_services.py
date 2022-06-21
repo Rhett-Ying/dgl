@@ -86,7 +86,7 @@ def _sample_etype_neighbors(local_g, partition_book, seed_nodes, etype_field,
     # graph partition mechanism.
     sampled_graph = local_sample_etype_neighbors(
         local_g, local_ids, etype_field, fan_out, edge_dir, prob, replace,
-        etype_sorted=True, _dist_training=True)
+        etype_sorted=False, _dist_training=True)
     global_nid_mapping = local_g.ndata[NID]
     src, dst = sampled_graph.edges()
     global_src, global_dst = F.gather_row(global_nid_mapping, src), \
