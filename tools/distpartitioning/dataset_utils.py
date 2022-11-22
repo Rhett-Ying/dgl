@@ -7,8 +7,11 @@ import torch
 from pyarrow import csv
 
 import constants
-from utils import get_idranges, map_partid_rank
-
+from utils import (
+    get_idranges,
+    map_partid_rank,
+    load_sliced_data,
+)
 
 def get_dataset(input_dir, graph_name, rank, world_size, num_parts, schema_map):
     """
@@ -147,19 +150,17 @@ def get_dataset(input_dir, graph_name, rank, world_size, num_parts, schema_map):
 
                 # It is guaranteed that num_chunks is always greater 
                 # than num_partitions. 
-                num_chunks = len(feat_data[constants.STR_DATA])
-                read_list = np.array_split(np.arange(num_chunks), num_parts)
                 for local_part_id in range(num_parts):
                     if map_partid_rank(local_part_id, world_size) == rank:
                         nfeat = []
                         nfeat_tids = []
-                        for idx in read_list[local_part_id]:
-                            nfeat_file = feat_data[constants.STR_DATA][idx]
+                        start, end = node_tids[ntype_name][local_part_id]
+                        file_names = []
+                        for nfeat_file in feat_data[constants.STR_DATA]:
                             if not os.path.isabs(nfeat_file):
                                 nfeat_file = os.path.join(input_dir, nfeat_file)
-                            logging.info(f'Loading node feature[{feat_name}] of ntype[{ntype_name}] from {nfeat_file}')
-                            nfeat.append(np.load(nfeat_file))
-                        nfeat = np.concatenate(nfeat) if len(nfeat) != 0 else np.array([])
+                            file_names.append(nfeat_file)
+                        nfeat = load_sliced_data(file_names, start, end)
                         node_features[ntype_name+"/"+feat_name+"/"+str(local_part_id//world_size)] = torch.from_numpy(nfeat)
                         nfeat_tids.append(node_tids[ntype_name][local_part_id])
                         node_feature_tids[ntype_name+"/"+feat_name+"/"+str(local_part_id//world_size)] = nfeat_tids
@@ -242,23 +243,19 @@ def get_dataset(input_dir, graph_name, rank, world_size, num_parts, schema_map):
         for etype_name, etype_feature_data in dataset_features.items():
             for feat_name, feat_data in etype_feature_data.items():
                 assert feat_data[constants.STR_FORMAT][constants.STR_NAME] == constants.STR_NUMPY
-                num_chunks = len(feat_data[constants.STR_DATA])
-                read_list = np.array_split(np.arange(num_chunks), num_parts)
                 for local_part_id in range(num_parts):
                     if map_partid_rank(local_part_id, world_size) == rank:
                         efeats = []
                         efeat_tids = []
-                        for idx in read_list[local_part_id]:
-                            feature_fname = feat_data[constants.STR_DATA][idx]
-                            if (os.path.isabs(feature_fname)):
-                                logging.info(f'Loading numpy from {feature_fname}')
-                                efeats.append(torch.from_numpy(np.load(feature_fname)))
-                            else:
-                                numpy_path = os.path.join(input_dir, feature_fname)
-                                logging.info(f'Loading numpy from {numpy_path}')
-                                efeats.append(torch.from_numpy(np.load(numpy_path)))
+                        start, end = edge_tids[etype_name][local_part_id]
+                        file_names = []
+                        for efeat_file in feat_data[constants.STR_DATA]:
+                            if not os.path.isabs(efeat_file):
+                                efeat_file = os.path.join(input_dir, efeat_file)
+                            file_names.append(efeat_file)
+                        efeats = load_sliced_data(file_names, start, end)
                         efeat_tids.append(edge_tids[etype_name][local_part_id])
-                        edge_features[etype_name+'/'+feat_name+"/"+str(local_part_id//world_size)] = torch.from_numpy(np.concatenate(efeats))
+                        edge_features[etype_name+'/'+feat_name+"/"+str(local_part_id//world_size)] = torch.from_numpy(efeats)
                         edge_feature_tids[etype_name+"/"+feat_name+"/"+str(local_part_id//world_size)] = efeat_tids
 
     # Done with building node_features locally. 
