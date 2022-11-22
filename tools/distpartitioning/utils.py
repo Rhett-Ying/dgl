@@ -565,7 +565,7 @@ def load_sliced_data(file_names, start, end):
 
     Parameters:
     -----------
-    file_name : list
+    file_names : list
         Files from which to load data.
     start : int
         Start point.

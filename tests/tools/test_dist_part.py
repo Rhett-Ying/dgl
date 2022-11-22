@@ -8,7 +8,6 @@ import pytest
 import torch
 from chunk_graph import chunk_graph
 from create_chunked_dataset import create_chunked_dataset
-#from distpartitioning.utils import load_sliced_data
 
 import dgl
 from dgl.data.utils import load_graphs, load_tensors
@@ -278,6 +277,20 @@ def _test_pipeline(
             )
 
 
+@pytest.mark.parametrize("num_chunks, num_parts, world_size",
+    [[4, 4, 4], [8, 4, 2], [8, 4, 4], [9, 6, 3], [11, 11, 1], [11, 4, 1]]
+)
+def test_pipeline_basics(num_chunks, num_parts, world_size):
+    _test_pipeline(num_chunks, num_parts, world_size)
+
+
+@pytest.mark.parametrize(
+    "graph_formats", [None, "csc", "coo,csc", "coo,csc,csr"]
+)
+def test_pipeline_formats(graph_formats):
+    _test_pipeline(4, 4, 4, graph_formats)
+
+
 @pytest.mark.parametrize(
     "num_chunks, "
     "num_parts, "
@@ -285,14 +298,9 @@ def _test_pipeline(
     "num_chunks_node_data, "
     "num_chunks_edge_data",
     [
-        [8, 4, 2, None, None],
-        [9, 6, 3, None, None],
-        [11, 11, 1, None, None],
-        [11, 4, 2, None, None],
-        [5, 3, 1, None, None],
         [8, 4, 2, 20, 25],
         [8, 4, 2, 3, 5],
-        [8, 4, 2, {'paper': {'feat': 11}},
+        [8, 4, 2, {'paper': {'feat': 11, 'year': 1}},
             {('author', 'writes', 'paper'): {'year': 24}}],
     ]
 )
@@ -310,42 +318,3 @@ def test_pipeline_basics(
         num_chunks_node_data=num_chunks_node_data,
         num_chunks_edge_data=num_chunks_edge_data,
     )
-
-
-@pytest.mark.parametrize(
-    "graph_formats", [None, "csc", "coo,csc", "coo,csc,csr"]
-)
-def test_pipeline_formats(graph_formats):
-    _test_pipeline(4, 4, 4, graph_formats)
-
-
-'''
-@pytest.mark.parametrize(
-    "num_files", [1, 5, 10]
-)
-def test_utils_load_sliced_data(num_files):
-    with tempfile.TemporaryDirectory() as root_dir:
-        data = np.random.rand(1000, 10)
-        data_list = np.array_split(data, num_files)
-        file_names = []
-        for i, sliced_data in enumerate(data_list):
-            file_name = os.path.join(root_dir, f"slice_{i}.npy")
-            np.save(file_name, sliced_data)
-            file_names.append(file_name)
-        for start, end in [
-            (0, 100),
-            (0, 101),
-            (0, 999),
-            (0, 1000),
-            (0, 2000),
-            (101, 300),
-            (400, 1000),
-            (401, 999),
-        ]:
-            sliced_data = load_sliced_data(file_names, start, end)
-            assert np.array_equal(sliced_data, data[start:end])
-        assert np.array_equal(
-            load_sliced_data(file_names, 1000, 2000),
-            np.array([])
-        )
-'''
