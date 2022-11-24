@@ -299,7 +299,8 @@ def test_pipeline_formats(graph_formats):
     "num_chunks_edge_data",
     [
         [8, 4, 2, 20, 25],
-        [8, 4, 2, 3, 5],
+        [9, 7, 5, 3, 11],
+        [8, 8, 4, 3, 5],
         [8, 4, 2, {'paper': {'feat': 11, 'year': 1}},
             {('author', 'writes', 'paper'): {'year': 24}}],
     ]

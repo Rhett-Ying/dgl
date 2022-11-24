@@ -559,37 +559,3 @@ def map_partid_rank(partid, world_size):
         id.
     """
     return partid % world_size
-
-def load_sliced_data(file_names, start, end):
-    """Read sliced data from a bundle of files.
-
-    Parameters:
-    -----------
-    file_names : list
-        Files from which to load data.
-    start : int
-        Start point.
-    end : int
-        End point.
-
-    Returns:
-    --------
-    data : tensor
-        Sliced data.
-    """
-    offset = 0
-    sliced_data = []
-    for file_name in file_names:
-        data = np.load(file_name, mmap_mode='r')
-        n = data.shape[0]
-        if offset + n > start:
-            read_start = max(0, start - offset)
-            read_end = min(n, end - offset)
-            sliced_data.append(data[read_start:read_end])
-        if offset + n > end:
-            break
-        offset += n
-    ret = np.array([])
-    if len(sliced_data) > 0:
-        ret = np.concatenate(sliced_data)
-    return ret
