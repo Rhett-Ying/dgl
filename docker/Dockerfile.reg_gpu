@@ -1,0 +1,39 @@
+# CI docker CPU env
+FROM nvidia/cuda:11.3.0-devel-ubuntu20.04
+
+ENV TZ=US
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN apt-get update --fix-missing
+
+RUN apt update && apt install -y \
+        apt-utils git build-essential make wget unzip sudo \
+        libz-dev libxml2-dev libopenblas-dev libopencv-dev \
+        graphviz graphviz-dev libgraphviz-dev ca-certificates \
+        systemd vim openssh-client openssh-server cmake \
+        bzip2 ca-certificates curl git python3-dev net-tools
+
+# python packages
+RUN ["/bin/bash", "-c", "cd /tmp && wget https://bootstrap.pypa.io/get-pip.py && python3 get-pip.py && cd -"]
+RUN ["/bin/bash", "-c", "pip3 install nose numpy cython scipy networkx matplotlib nltk"]
+RUN ["/bin/bash", "-c", "pip3 install requests[security] tqdm psutil pyyaml pydantic"]
+RUN ["/bin/bash", "-c", "pip3 install pandas rdflib ogb filelock pyarrow"]
+RUN ["/bin/bash", "-c", "pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu113"]
+RUN ["/bin/bash", "-c", "pip3 install dgl-cu113 -f https://data.dgl.ai/wheels/repo.html"]
+
+# DGL tools
+RUN ["/bin/bash", "-c", "git clone https://github.com/dmlc/dgl.git && cd dgl && git checkout dist_part && cd -"]
+
+# Environment variables
+ENV PATH=/usr/local/cuda/bin:${PATH}
+ENV CPLUS_INCLUDE_PATH=/usr/local/cuda/include:${CPLUS_INCLUDE_PATH}
+ENV C_INCLUDE_PATH=/usr/local/cuda/include:${C_INCLUDE_PATH}
+ENV LIBRARY_PATH=/usr/local/cuda/lib64:${LIBRARY_PATH}
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+ENV PYTHONPATH=${PWD}/dgl/tools:${PYTHONPATH}
+
+# SSH
+RUN ["/bin/bash", "-c", "ssh-keygen -f ~/.ssh/id_rsa -N ''"]
+RUN ["/bin/bash", "-c", "cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys"]
+RUN sed -i 's/\(^Port\)/#\1/' /etc/ssh/sshd_config && echo Port 2233 >> /etc/ssh/sshd_config
+ENTRYPOINT service ssh restart && bash
