@@ -18,7 +18,7 @@ RUN ["/bin/bash", "-c", "cd /tmp && wget https://bootstrap.pypa.io/get-pip.py &&
 RUN ["/bin/bash", "-c", "pip3 install nose numpy cython scipy networkx matplotlib nltk"]
 RUN ["/bin/bash", "-c", "pip3 install requests[security] tqdm psutil pyyaml pydantic"]
 RUN ["/bin/bash", "-c", "pip3 install pandas rdflib ogb filelock pyarrow"]
-RUN ["/bin/bash", "-c", "pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu113"]
+RUN ["/bin/bash", "-c", "pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cpu"]
 RUN ["/bin/bash", "-c", "pip3 install --pre dgl -f https://data.dgl.ai/wheels-test/repo.html"]
 
 # DGL tools
