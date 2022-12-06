@@ -28,7 +28,7 @@ wait_for_nodes () {
 report_to_main () {
     IP=$(hostname -i)
     CMD="echo ${IP} >> ${IP_CONFIG}"
-    ssh ${AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS} ${CMD}
+    ssh -p 2233 ${AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS} ${CMD}
     echo "Node~${AWS_BATCH_JOB_NODE_INDEX} has reported ${IP} to main node."
 }
 
