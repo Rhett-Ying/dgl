@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-#$(service ssh restart)
+$(service ssh restart)
 
 WORKSPACE="/workspace"
 
