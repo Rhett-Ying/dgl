@@ -17,8 +17,8 @@ wait_for_nodes () {
     NUM_LINES=$(sort ${IP_CONFIG} | uniq | wc -l)
     while [ "${AWS_BATCH_JOB_NUM_NODES}" -gt "${NUM_LINES}" ]
     do
-        echo "${NUM_LINES} out of ${AWS_BATCH_JOB_NUM_NODES} nodes joined, check again in 1 second."
-        sleep 1
+        echo "${NUM_LINES} out of ${AWS_BATCH_JOB_NUM_NODES} nodes joined, check again in 5 second."
+        sleep 5
         NUM_LINES=$(sort ${IP_CONFIG} | uniq | wc -l)
     done
     echo "All nodes successfully joined..."
@@ -28,7 +28,7 @@ wait_for_nodes () {
 report_to_main () {
     IP=$(hostname -i)
     CMD="echo ${IP} >> ${IP_CONFIG}"
-    ssh -p 2233 ${AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS} ${CMD}
+    ssh -o StrictHostKeyChecking=no -p 2233 ${AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS} ${CMD}
     echo "Node~${AWS_BATCH_JOB_NODE_INDEX} has reported ${IP} to main node."
 }
 
@@ -45,8 +45,8 @@ share_to_nodes () {
 wait_for_ip_share () {
     while [ ! -f "${IP_CONFIG}" ]
     do
-        echo "Node~${AWS_BATCH_JOB_NODE_INDEX} is waiting for IP share from main node. Sleep 1 second."
-        sleep 1
+        echo "Node~${AWS_BATCH_JOB_NODE_INDEX} is waiting for IP share from main node. Sleep 5 second."
+        sleep 5
     done
 }
 

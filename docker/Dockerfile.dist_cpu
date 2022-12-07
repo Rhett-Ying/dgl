@@ -1,24 +1,7 @@
 # CI docker CPU env
-FROM ubuntu:20.04
+FROM dgllib/dgl-aws-batch-base-cpu:v221206
 
-ENV TZ=US
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-
-RUN apt-get update --fix-missing
-
-RUN apt update && apt install -y \
-        apt-utils git build-essential make wget unzip sudo \
-        libz-dev libxml2-dev libopenblas-dev libopencv-dev \
-        graphviz graphviz-dev libgraphviz-dev ca-certificates \
-        systemd vim openssh-client openssh-server cmake \
-        bzip2 ca-certificates curl git python3-dev net-tools
-
-# python packages
-RUN ["/bin/bash", "-c", "cd /tmp && wget https://bootstrap.pypa.io/get-pip.py && python3 get-pip.py && cd -"]
-RUN ["/bin/bash", "-c", "pip3 install nose numpy cython scipy networkx matplotlib nltk"]
-RUN ["/bin/bash", "-c", "pip3 install requests[security] tqdm psutil pyyaml pydantic"]
-RUN ["/bin/bash", "-c", "pip3 install pandas rdflib ogb filelock pyarrow"]
-RUN ["/bin/bash", "-c", "pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cpu"]
+# DGL
 RUN ["/bin/bash", "-c", "pip3 install --pre dgl -f https://data.dgl.ai/wheels-test/repo.html"]
 
 # DGL tools
@@ -31,6 +14,5 @@ ENV PYTHONPATH=${PWD}/dgl/tools:${PYTHONPATH}
 RUN ["/bin/bash", "-c", "ssh-keygen -f ~/.ssh/id_rsa -N ''"]
 RUN ["/bin/bash", "-c", "cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys"]
 RUN sed -i 's/\(^Port\)/#\1/' /etc/ssh/sshd_config && echo Port 2233 >> /etc/ssh/sshd_config
-EXPOSE 2233
-ENTRYPOINT service ssh restart && bash
-#ENTRYPOINT service ssh restart && bash /dgl/tests/regression/generate_ip_config.sh /workspace /workspace/ip_config.txt
+#ENTRYPOINT service ssh restart && bash
+ENTRYPOINT service ssh restart && bash /dgl/tests/regression/generate_ip_config.sh /workspace /workspace/ip_config.txt
