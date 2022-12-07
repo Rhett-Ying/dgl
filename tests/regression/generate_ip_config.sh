@@ -2,6 +2,7 @@
 
 WORKSPACE=$1
 IP_CONFIG=$2
+SSH_PORT=2233
 
 NODE_TYPE="child"
 if [ "${AWS_BATCH_JOB_MAIN_NODE_INDEX}" == "${AWS_BATCH_JOB_NODE_INDEX}" ]; then
@@ -22,14 +23,14 @@ wait_for_nodes () {
         sleep 5
         NUM_LINES=$(sort ${IP_CONFIG} | uniq | wc -l)
     done
-    echo "All nodes successfully joined..."
+    echo "All nodes successfully joined: $(cat ${IP_CONFIG})"
 }
 
 # report IP to main node
 report_to_main () {
     IP=$(hostname -i)
     CMD="echo ${IP} >> ${IP_CONFIG}"
-    ssh -o StrictHostKeyChecking=no -p 2233 ${AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS} ${CMD}
+    ssh -o StrictHostKeyChecking=no -p ${SSH_PORT} ${AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS} ${CMD}
     echo "Node~${AWS_BATCH_JOB_NODE_INDEX} has reported ${IP} to main node."
 }
 
@@ -37,7 +38,7 @@ report_to_main () {
 share_to_nodes () {
     for target in $(cat ${IP_CONFIG})
     do
-        scp ${IP_CONFIG} ${target}:${IP_CONFIG}
+        scp -o StrictHostKeyChecking=no -P ${SSH_PORT} ${IP_CONFIG} ${target}:${IP_CONFIG}
     done
     echo "Shared IP to all nodes."
 }
