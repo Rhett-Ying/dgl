@@ -5,11 +5,8 @@
 
 WORKSPACE="/workspace"
 
-while getopts 'w:h' opt; do
+while getopts 'h' opt; do
     case "${opt}" in
-        w)
-            WORKSPACE="${OPTARG}"
-            ;;
         ?|h)
             echo "Usage: $(basename $0) [-w arg]"
             exit 1
