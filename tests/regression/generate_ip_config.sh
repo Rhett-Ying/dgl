@@ -1,14 +1,11 @@
 #!/bin/bash
 
-WORKSPACE=$1
-IP_CONFIG=$2
-SSH_PORT=2233
 
 NODE_TYPE="child"
 if [ "${AWS_BATCH_JOB_MAIN_NODE_INDEX}" == "${AWS_BATCH_JOB_NODE_INDEX}" ]; then
-    echo "Running on main node..."
     NODE_TYPE="main"
 fi
+echo "Running on ${NODE_TYPE} node..."
 
 # wait for all nodes to report IP
 wait_for_nodes () {
@@ -65,4 +62,4 @@ case ${NODE_TYPE} in
         ;;
 esac
 
-echo "All is done and exiting from ${AWS_BATCH_JOB_NODE_INDEX}."
+echo "IP list on Node~${AWS_BATCH_JOB_NODE_INDEX}: $(cat ${IP_CONFIG})."

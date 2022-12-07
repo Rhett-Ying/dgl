@@ -1,18 +1,29 @@
 #!/bin/bash
 
-export AWS_BATCH_JOB_NODE_INDEX=0
-export AWS_BATCH_JOB_NUM_NODES=1
-export AWS_BATCH_JOB_MAIN_NODE_INDEX=0
-export AWS_BATCH_JOB_ID=string
 
+#$(service ssh restart)
 
-WORKSPACE=/workspace
-WORKSPACE=/home/ubuntu/workspace/dgl2
-IP_CONFIG="${WORKSPACE}/ip_config.txt"
+WORKSPACE="/workspace"
+
+while getopts 'w:h' opt; do
+    case "${opt}" in
+        w)
+            WORKSPACE="${OPTARG}"
+            ;;
+        ?|h)
+            echo "Usage: $(basename $0) [-w arg]"
+            exit 1
+            ;;
+    esac
+done
+
+echo "Workspace: ${WORKSPACE}."
+export WORKSPACE=${WORKSPACE}
+export IP_CONFIG="${WORKSPACE}/ip_config.txt"
+export SSH_PORT=2233
 
 ## collect IP addresses and scatter: ip_config.txt
-bash ${WORKSPACE}/tests/regression/generate_ip_config.sh ${WORKSPACE} ${IP_CONFIG}
-#echo "ip_list: $(cat ${WORKSPACE}/ip_config.txt)"
+bash /dgl/tests/regression/generate_ip_config.sh
 
 # fetch raw data
 #rank=1

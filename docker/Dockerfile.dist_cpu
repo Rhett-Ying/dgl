@@ -14,5 +14,7 @@ ENV PYTHONPATH=${PWD}/dgl/tools:${PYTHONPATH}
 RUN ["/bin/bash", "-c", "ssh-keygen -f ~/.ssh/id_rsa -N ''"]
 RUN ["/bin/bash", "-c", "cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys"]
 RUN sed -i 's/\(^Port\)/#\1/' /etc/ssh/sshd_config && echo Port 2233 >> /etc/ssh/sshd_config
-#ENTRYPOINT service ssh restart && bash
-ENTRYPOINT service ssh restart && bash /dgl/tests/regression/generate_ip_config.sh /workspace /workspace/ip_config.txt
+RUN echo "Host *" >> /etc/ssh/ssh_config && echo " StrictHostKeyChecking no" >> /etc/ssh/ssh_config
+
+# Run tests
+ENTRYPOINT ["bash", "/dgl/tests/regression/dist_test_launcher.sh"]
