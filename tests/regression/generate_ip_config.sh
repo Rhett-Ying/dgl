@@ -14,6 +14,7 @@ wait_for_nodes () {
     echo "Main node is waiting for all nodes to report IP..."
     touch ${IP_CONFIG}
     echo $(hostname -i) >> ${IP_CONFIG}
+    echo "Main node's IP [${IP}] has been recorded."
     NUM_LINES=$(sort ${IP_CONFIG} | uniq | wc -l)
     while [ "${AWS_BATCH_JOB_NUM_NODES}" -gt "${NUM_LINES}" ]
     do
