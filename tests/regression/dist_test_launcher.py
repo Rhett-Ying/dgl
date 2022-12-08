@@ -6,16 +6,20 @@ def prepare_dgl():
         "pip3 install --pre dgl -f https://data.dgl.ai/wheels-test/repo.html"
     )
 
-def export_envs():
+def prepare_env():
     os.system('service ssh restart')
 
     workspace = os.environ.get('WORKSPACE', '/workspace')
     if not os.path.isdir(workspace):
         os.makedirs(workspace)
+
+    return workspace
+
+def fetch_raw_data():
+    workspace = os.environ.get('WORKSPACE', '/workspace')
     os.system(
-        f"export WORKSPACE={workspace}"
-        f" && export IP_CONFIG={workspace}/ip_config.txt"
-        " && export SSH_PORT=2233"
+        'aws s3 sync s3://dgl-data-store/test_dataset '
+        f'{workspace}/test_dataset'
     )
 
 if __name__ == '__main__':
@@ -29,10 +33,13 @@ if __name__ == '__main__':
     #prepare_dgl()
 
     # export envs
-    export_envs()
+    workspace = prepare_env()
 
     # generate ip_config.txt
+    ip_config = os.path.join(workspace, 'ip_config.txt')
     os.system(
-        "bash /dgl/tests/regression/generate_ip_config.sh"
+        "bash /dgl/tests/regression/generate_ip_config.sh {ip_config}"
     )
 
+    # fetch raw data
+    fetch_raw_data()
