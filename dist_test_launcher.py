@@ -26,7 +26,7 @@ if __name__ == '__main__':
     _, _ = parser.parse_known_args()
 
     # DGL preparation
-    prepare_dgl()
+    #prepare_dgl()
 
     # export envs
     export_envs()
