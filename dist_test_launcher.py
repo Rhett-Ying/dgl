@@ -7,6 +7,8 @@ def prepare_dgl():
     )
 
 def export_envs():
+    os.system('service ssh restart')
+
     workspace = os.environ.get('WORKSPACE', '/workspace')
     if not os.path.isdir(workspace):
         os.makedirs(workspace)

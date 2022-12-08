@@ -11,7 +11,8 @@ RUN apt update && apt install -y \
         libz-dev libxml2-dev libopenblas-dev libopencv-dev \
         graphviz graphviz-dev libgraphviz-dev ca-certificates \
         systemd vim openssh-client openssh-server cmake \
-        bzip2 ca-certificates curl git python3-dev net-tools
+        bzip2 ca-certificates curl git python3-dev net-tools \
+        awscli
 
 # python packages
 RUN ["/bin/bash", "-c", "cd /tmp && wget https://bootstrap.pypa.io/get-pip.py && python3 get-pip.py && cd -"]
@@ -19,3 +20,9 @@ RUN ["/bin/bash", "-c", "pip3 install nose numpy cython scipy networkx matplotli
 RUN ["/bin/bash", "-c", "pip3 install requests[security] tqdm psutil pyyaml pydantic"]
 RUN ["/bin/bash", "-c", "pip3 install pandas rdflib ogb filelock pyarrow"]
 RUN ["/bin/bash", "-c", "pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cpu"]
+
+# SSH
+RUN ["/bin/bash", "-c", "ssh-keygen -f ~/.ssh/id_rsa -N ''"]
+RUN ["/bin/bash", "-c", "cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys"]
+RUN sed -i 's/\(^Port\)/#\1/' /etc/ssh/sshd_config && echo Port 2233 >> /etc/ssh/sshd_config
+RUN echo "Host *" >> /etc/ssh/ssh_config && echo " StrictHostKeyChecking no" >> /etc/ssh/ssh_config
