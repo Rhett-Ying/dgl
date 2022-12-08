@@ -36,11 +36,12 @@ if __name__ == '__main__':
     # export envs
     workspace = prepare_env()
 
+    # fetch raw data
+    fetch_raw_data()
+
     # generate ip_config.txt
     ip_config = os.path.join(workspace, 'ip_config.txt')
     os.system(
-        "bash /dgl/tests/regression/generate_ip_config.sh {ip_config}"
+        f"bash /dgl/tests/regression/generate_ip_config.sh {ip_config}"
     )
-
-    # fetch raw data
-    fetch_raw_data()
+    
