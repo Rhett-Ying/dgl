@@ -12,6 +12,7 @@ def prepare_env():
     workspace = os.environ.get('WORKSPACE', '/workspace')
     if not os.path.isdir(workspace):
         os.makedirs(workspace)
+        print(f"{workspace} is created...")
 
     return workspace
 
