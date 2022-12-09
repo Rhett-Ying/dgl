@@ -63,7 +63,7 @@ if __name__ == '__main__':
     _, _ = parser.parse_known_args()
 
     # DGL preparation
-    prepare_dgl()
+    #prepare_dgl() #public network is not accessible but works manually connect EC2.
 
     # export envs
     prepare_env()
