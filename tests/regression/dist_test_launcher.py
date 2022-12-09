@@ -12,15 +12,18 @@ def prepare_env():
     workspace = os.environ.get('WORKSPACE', '/workspace')
     if not os.path.isdir(workspace):
         os.makedirs(workspace)
-        print(f"{workspace} is created...")
-
-    return workspace
+        os.environ['WORKSPACE'] = workspace
+    os.environ['IP_CONFIG'] = os.path.join(workspace, 'ip_config.txt')
+    os.environ['SSH_PORT'] = 2233
 
 def fetch_raw_data():
     workspace = os.environ.get('WORKSPACE', '/workspace')
     os.system(
         'aws s3 sync s3://dgl-data-store/test_dataset '
         f'{workspace}/test_dataset'
+    )
+    os.system(
+        f'ls -lh {workspace}/test_dataset'
     )
 
 if __name__ == '__main__':
@@ -31,17 +34,15 @@ if __name__ == '__main__':
     _, _ = parser.parse_known_args()
 
     # DGL preparation
-    #prepare_dgl()
+    prepare_dgl()
 
     # export envs
-    workspace = prepare_env()
+    prepare_env()
+
+    # generate ip_config.txt
+    os.system(
+        "bash /dgl/tests/regression/generate_ip_config.sh"
+    )
 
     # fetch raw data
     fetch_raw_data()
-
-    # generate ip_config.txt
-    ip_config = os.path.join(workspace, 'ip_config.txt')
-    os.system(
-        f"bash /dgl/tests/regression/generate_ip_config.sh {ip_config}"
-    )
-    

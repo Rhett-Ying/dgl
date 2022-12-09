@@ -1,7 +1,5 @@
 #!/bin/bash
 
-IP_CONFIG=$1
-SSH_PORT=2233
 
 NODE_TYPE="child"
 if [ "${AWS_BATCH_JOB_MAIN_NODE_INDEX}" == "${AWS_BATCH_JOB_NODE_INDEX}" ]; then
