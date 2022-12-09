@@ -1,11 +1,21 @@
 import os
 import argparse
 
+def func_wrapper(func):
+    def wrap_func(*args, **kwargs):
+        print(f'{func.__name__} begin')
+        result = func(*args, **kwargs)
+        print(f'{func.__name__} end')
+        return result
+    return wrap_func
+
+@func_wrapper
 def prepare_dgl():
     os.system(
         "pip3 install --pre dgl -f https://data.dgl.ai/wheels-test/repo.html"
     )
 
+@func_wrapper
 def prepare_env():
     os.system('service ssh restart')
 
@@ -16,6 +26,14 @@ def prepare_env():
     os.environ['IP_CONFIG'] = os.path.join(workspace, 'ip_config.txt')
     os.environ['SSH_PORT'] = '2233'
 
+@func_wrapper
+def generate_ip_config():
+    # generate ip_config.txt
+    os.system(
+        "bash /dgl/tests/regression/generate_ip_config.sh"
+    )
+
+@func_wrapper
 def fetch_raw_data():
     workspace = os.environ.get('WORKSPACE', '/workspace')
     data_path = os.path.join(workspace, 'test_dataset')
@@ -27,6 +45,7 @@ def fetch_raw_data():
     )
     return data_path
 
+@func_wrapper
 def graph_partition(root_dir):
     num_parts = 4
 
@@ -63,18 +82,18 @@ if __name__ == '__main__':
     _, _ = parser.parse_known_args()
 
     # DGL preparation
-    #prepare_dgl() #public network is not accessible but works manually connect EC2.
+    prepare_dgl() #public network is not accessible but works manually connect EC2.
 
     # export envs
     prepare_env()
 
     # generate ip_config.txt
-    os.system(
-        "bash /dgl/tests/regression/generate_ip_config.sh"
-    )
+    generate_ip_config()
 
     # fetch raw data
     data_path = fetch_raw_data()
 
     # graph partition
     graph_partition(data_path)
+
+    print("All are done...")
