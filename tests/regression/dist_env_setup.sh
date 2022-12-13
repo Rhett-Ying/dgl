@@ -1,6 +1,22 @@
 #!/bin/bash
 
 
+# restart ssh service to enable port 2233
+service ssh restart
+
+
+# check and defines required envs
+WORKSPACE="/workspace"
+export WORKSPACE=${WORKSPACE}
+mkdir ${WORKSPACE}
+
+IP_CONFIG="${WORKSPACE}/ip_config.txt"
+export IP_CONFIG=${IP_CONFIG}
+
+export SSH_PORT="2233"
+
+
+# generate ip_config.txt
 NODE_TYPE="child"
 if [ "${AWS_BATCH_JOB_MAIN_NODE_INDEX}" == "${AWS_BATCH_JOB_NODE_INDEX}" ]; then
     NODE_TYPE="main"
