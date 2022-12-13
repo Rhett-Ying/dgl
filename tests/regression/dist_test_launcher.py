@@ -33,6 +33,20 @@ def report_gen():
 
 @func_wrapper
 def prepare_env():
+    # restart ssh service to enable port 2233
+    os.system(
+        "service ssh restart"
+    )
+
+    # check and defines required envs
+    workspace = os.environ.get("WORKSPACE", "/workspace")
+    if not os.path.isdir(workspace):
+        os.mkdir(workspace)
+    os.environ["WORKSPACE"] = workspace
+    os.environ["IP_CONFIG"] = os.path.join(workspace, "ip_config.txt")
+    os.environ["SSH_PORT"] = "2233"
+
+    # generate ip_config.txt
     os.system("bash /dgl/tests/regression/dist_env_setup.sh")
 
 
