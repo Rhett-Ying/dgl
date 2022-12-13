@@ -59,7 +59,7 @@ if __name__ == '__main__':
     _, _ = parser.parse_known_args()
 
     # prepare distributed compute environment
-    prepare_env()
+    #prepare_env()
 
     # graph partition
     graph_partition()
