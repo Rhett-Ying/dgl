@@ -9,11 +9,6 @@ def func_wrapper(func):
         return result
     return wrap_func
 
-@func_wrapper
-def prepare_dgl():
-    os.system(
-        "pip3 install --pre dgl -f https://data.dgl.ai/wheels-test/repo.html"
-    )
 
 @func_wrapper
 def prepare_env():
@@ -80,9 +75,6 @@ if __name__ == '__main__':
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     _, _ = parser.parse_known_args()
-
-    # DGL preparation
-    prepare_dgl() #public network is not accessible but works manually connect EC2.
 
     # export envs
     prepare_env()
