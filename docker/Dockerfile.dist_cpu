@@ -1,5 +1,5 @@
 # CI docker CPU env
-FROM public.ecr.aws/e2w5q3x0/dist-dgl-aws-batch-base-cpu:v221213
+FROM dgllib/dgl-aws-batch-base-cpu:v221208
 
 # PyTorch
 #RUN ["/bin/bash", "-c", "pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cpu"]
