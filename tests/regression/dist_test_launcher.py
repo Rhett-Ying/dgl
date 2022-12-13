@@ -55,4 +55,4 @@ if __name__ == '__main__':
     # report generation
     report_gen()
 
-    print("All are done...")
+    print("Dist test launcher is done...")

@@ -12,21 +12,18 @@ def func_wrapper(func):
 
 
 @func_wrapper
-def fetch_raw_data():
+def fetch_raw_data(dataset):
     workspace = os.environ.get('WORKSPACE', '/workspace')
-    data_path = os.path.join(workspace, 'test_dataset')
+    data_path = os.path.join(workspace, dataset)
     os.system(
-        f'aws s3 sync s3://dgl-data-store/test_dataset {data_path}'
-    )
-    os.system(
-        f'ls -lh {data_path}'
+        f"python3 /dgl/tests/regression/data_store.py --dataset {dataset} "
+        f"--output_dir {data_path}"
     )
     return data_path
 
-@func_wrapper
-def graph_partition(root_dir):
-    num_parts = 4
 
+@func_wrapper
+def graph_partition(root_dir, num_parts):
     # Step1: graph partition
     in_dir = os.path.join(root_dir, "chunked-data")
     output_dir = os.path.join(root_dir, "parted_data")
@@ -53,6 +50,17 @@ def graph_partition(root_dir):
     os.system(cmd)
 
 
+@func_wrapper
+def dist_part_pipeline(dataset, num_parts):
+    data_path = fetch_raw_data(dataset)
+    graph_partition(data_path, num_parts)
+
+    print(
+        f"Finished distributed partition pipeline test for dataset[{dataset}]"
+        f" with {num_parts} partitions."
+    )
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Distributed graph partition test suite",
@@ -60,4 +68,9 @@ if __name__ == '__main__':
     )
     _, _ = parser.parse_known_args()
 
-    pass
+    # distributed partition pipeline
+    for dataset in ["test_dataset"]:
+        for num_parts in [4]:
+            dist_part_pipeline(dataset, num_parts)
+
+    print("Graph partition test suite is done...")
