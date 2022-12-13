@@ -80,3 +80,5 @@ case ${NODE_TYPE} in
 esac
 
 echo "IP list on Node~${AWS_BATCH_JOB_NODE_INDEX}: $(cat ${IP_CONFIG})."
+
+exit 0

@@ -37,6 +37,7 @@ def prepare_env():
 
 
 if __name__ == '__main__':
+    print("-------------------------- DistTestLauncher -------------")
     parser = argparse.ArgumentParser(
         description="Distributed test launcher",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
