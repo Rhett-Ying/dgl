@@ -2,6 +2,7 @@ import os
 import argparse
 import logging
 import sys
+import time
 
 def func_wrapper(func):
     def wrap_func(*args, **kwargs):
@@ -67,10 +68,11 @@ if __name__ == '__main__':
     # prepare distributed compute environment
     prepare_env()
 
-    # non-main nodes exits now
+    # non-main nodes starts to wait for completion of main node.
     if os.environ["AWS_BATCH_JOB_MAIN_NODE_INDEX"] != \
         os.environ["AWS_BATCH_JOB_NODE_INDEX"]:
-        sys.exit(0)
+        logging.info("Child node goes to sleep now...")
+        time.sleep(60*60*24)
 
     # graph partition
     graph_partition()
