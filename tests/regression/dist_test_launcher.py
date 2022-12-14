@@ -1,7 +1,7 @@
 import os
 import argparse
-import sys
 import logging
+import sys
 
 def func_wrapper(func):
     def wrap_func(*args, **kwargs):
@@ -57,10 +57,7 @@ if __name__ == '__main__':
     logging.basicConfig(format=fmt, level=logging.INFO)
 
     logging.info("-------------------------- DistTestLauncher -------------")
-    #os.system(
-    #    "aws s3 ls s3://dgl-data-store/test_dataset"
-    #)
-    #sys.exit(0)
+
     parser = argparse.ArgumentParser(
         description="Distributed test launcher",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -69,6 +66,11 @@ if __name__ == '__main__':
 
     # prepare distributed compute environment
     prepare_env()
+
+    # non-main nodes exits now
+    if os.environ["AWS_BATCH_JOB_MAIN_NODE_INDEX"] != \
+        os.environ["AWS_BATCH_JOB_NODE_INDEX"]:
+        sys.exit(0)
 
     # graph partition
     graph_partition()

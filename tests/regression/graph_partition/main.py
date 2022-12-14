@@ -50,13 +50,17 @@ def graph_partition(root_dir, num_parts):
 
     os.system(cmd)
 
+    os.system(
+        f"ls -lh {out_dir}"
+    )
+
 
 @func_wrapper
 def dist_part_pipeline(dataset, num_parts):
     data_path = fetch_raw_data(dataset)
     graph_partition(data_path, num_parts)
 
-    print(
+    logging.info(
         f"Finished distributed partition pipeline test for dataset[{dataset}]"
         f" with {num_parts} partitions."
     )
