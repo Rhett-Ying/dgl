@@ -53,10 +53,10 @@ def prepare_env():
 
 if __name__ == '__main__':
     print("-------------------------- DistTestLauncher -------------")
-    os.system(
-        "aws s3 ls s3://dgl-data-store/test_dataset"
-    )
-    sys.exit(0)
+    #os.system(
+    #    "aws s3 ls s3://dgl-data-store/test_dataset"
+    #)
+    #sys.exit(0)
     parser = argparse.ArgumentParser(
         description="Distributed test launcher",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
