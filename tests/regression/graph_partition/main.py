@@ -1,12 +1,13 @@
 import argparse
 import os
+import logging
 
 
 def func_wrapper(func):
     def wrap_func(*args, **kwargs):
-        print(f'{func.__name__} begin')
+        logging.info(f'{func.__name__} begin')
         result = func(*args, **kwargs)
-        print(f'{func.__name__} end')
+        logging.info(f'{func.__name__} end')
         return result
     return wrap_func
 
@@ -73,4 +74,4 @@ if __name__ == '__main__':
         for num_parts in [4]:
             dist_part_pipeline(dataset, num_parts)
 
-    print("Graph partition test suite is done...")
+    logging.info("Graph partition test suite is done...")

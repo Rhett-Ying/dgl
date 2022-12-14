@@ -1,12 +1,13 @@
 import os
 import argparse
 import sys
+import logging
 
 def func_wrapper(func):
     def wrap_func(*args, **kwargs):
-        print(f'{func.__name__} begin')
+        logging.info(f'{func.__name__} begin')
         result = func(*args, **kwargs)
-        print(f'{func.__name__} end')
+        logging.info(f'{func.__name__} end')
         return result
     return wrap_func
 
@@ -52,7 +53,10 @@ def prepare_env():
 
 
 if __name__ == '__main__':
-    print("-------------------------- DistTestLauncher -------------")
+    fmt = "%(asctime)s %(levelname)s %(message)s"
+    logging.basicConfig(format=fmt, level=logging.INFO)
+
+    logging.info("-------------------------- DistTestLauncher -------------")
     #os.system(
     #    "aws s3 ls s3://dgl-data-store/test_dataset"
     #)
@@ -75,4 +79,4 @@ if __name__ == '__main__':
     # report generation
     report_gen()
 
-    print("Dist test launcher is done...")
+    logging.info("Dist test launcher is done...")

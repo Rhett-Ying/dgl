@@ -1,5 +1,6 @@
 import argparse
 import os
+import logging
 
 
 if __name__ == '__main__':
@@ -28,4 +29,4 @@ if __name__ == '__main__':
         f"ls -lh {args.output_dir}"
     )
 
-    print(f"Finished to download {args.dataset} to {args.output_dir}")
+    logging.info(f"Finished to download {args.dataset} to {args.output_dir}")
