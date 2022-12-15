@@ -1,8 +1,9 @@
 import logging
 import os
 import time
+import re
 
-from task import Task, get_peak_mem
+from task import Task
 
 class PartitionTask(Task):
     def __init__(self, data_store, data_name, num_parts):
@@ -87,3 +88,21 @@ class PartitionTask(Task):
             f"######## Time(seconds): {self.tic_toc:.3f} \n"
             f"######## Peak memory(GB): {get_peak_mem():.3f} \n"
         )
+
+
+def get_peak_mem():
+    """Get the peak memory size.
+
+    Returns
+    -------
+    float
+        The peak memory size in GB.
+    """
+    if not os.path.exists("/proc/self/status"):
+        return 0.0
+    for line in open("/proc/self/status", "r"):
+        if "VmPeak" in line:
+            mem = re.findall(r"\d+", line)[0]
+            return int(mem) / 1024 / 1024
+    return 0.0
+

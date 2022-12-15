@@ -1,7 +1,6 @@
 import os
 import logging
 import time
-import re
 
 
 class Task:
@@ -30,19 +29,3 @@ class Task:
     def _print_metrics(self):
         raise RuntimeError("Not implemented...")
 
-
-def get_peak_mem():
-    """Get the peak memory size.
-
-    Returns
-    -------
-    float
-        The peak memory size in GB.
-    """
-    if not os.path.exists("/proc/self/status"):
-        return 0.0
-    for line in open("/proc/self/status", "r"):
-        if "VmPeak" in line:
-            mem = re.findall(r"\d+", line)[0]
-            return int(mem) / 1024 / 1024
-    return 0.0
