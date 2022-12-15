@@ -42,7 +42,7 @@ class PartitionTask(Task):
                     continue
                 ip = line.rstrip()
                 os.system(
-                    f"rsync -avrz -e 'ssh -o StrictHostKeyChecking=no -p ${ssh_port}' "
+                    f"rsync -avrz -e 'ssh -o StrictHostKeyChecking=no -p {ssh_port}' "
                     f" {output_dir} {ip}:{output_dir} "
                     f" && ls -lh {self.data_path}"
                 )
