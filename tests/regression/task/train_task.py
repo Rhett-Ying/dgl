@@ -11,3 +11,6 @@ class TrainTask(Task):
 
     def _do_run(self):
         raise RuntimeError("Not implemented...")
+
+    def _print_metrics(self):
+        raise RuntimeError("Not implemented...")

@@ -12,6 +12,7 @@ class Task:
         self._prepare_data()
         self._continue_on_main_nodes_only()
         self._do_run()
+        self._print_metrics()
 
     def _prepare_data(self):
         raise RuntimeError("Not implemented...")
@@ -24,6 +25,9 @@ class Task:
         logging.info("Main node continues...")
 
     def _do_run(self):
+        raise RuntimeError("Not implemented...")
+
+    def _print_metrics(self):
         raise RuntimeError("Not implemented...")
 
 

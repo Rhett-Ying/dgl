@@ -70,13 +70,20 @@ class PartitionTask(Task):
         cmd += " --process-group-timeout 60"
 
         os.system(cmd)
-
         os.system(f"ls -lh {out_dir}")
+        self.tic_toc = time.time() - tic
 
-        # print metrics
+        logging.info(
+            f"Graph partition for {self.data_name} with "
+            f"{self.num_parts} parts is done..."
+        )
+
+    def _print_metrics(self):
         logging.info(
             f"-------------- metrics ---------------- \n"
             f"######## Task: Graph Partition [Dispatch data] \n"
-            f"######## Time: {(time.time() - tic):.3f} seconds \n"
-            f"######## Peak memory: {get_peak_mem():.3f} GB"
+            f"######## Dataset: {self.data_name} \n"
+            f"######## Num_parts: {self.num_parts} \n"
+            f"######## Time(seconds): {self.tic_toc:.3f} \n"
+            f"######## Peak memory(GB): {get_peak_mem():.3f} \n"
         )
