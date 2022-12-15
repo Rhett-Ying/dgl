@@ -1,7 +1,8 @@
 import logging
 import os
+import time
 
-from task import Task
+from task import Task, get_peak_mem
 
 class PartitionTask(Task):
     def __init__(self, data_store, data_name, num_parts):
@@ -54,6 +55,7 @@ class PartitionTask(Task):
                     f"ssh -o StrictHostKeyChecking=no -p {ssh_port} {ip} 'ls -lh {self.data_path}/*'"
                 )
 
+        tic = time.time()
         # Step2: data dispatch
         partition_dir = os.path.join(self.data_path, 'parted_data')
         out_dir = os.path.join(self.data_path, 'partitioned')
@@ -70,3 +72,11 @@ class PartitionTask(Task):
         os.system(cmd)
 
         os.system(f"ls -lh {out_dir}")
+
+        # print metrics
+        logging.info(
+            f"-------------- metrics ---------------- \n"
+            f"######## Task: Graph Partition [Dispatch data] \n"
+            f"######## Time: {(time.time() - tic):.3f} seconds \n"
+            f"######## Peak memory: {get_peak_mem():.3f} GB"
+        )
