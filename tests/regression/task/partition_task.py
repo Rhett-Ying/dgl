@@ -40,8 +40,10 @@ class PartitionTask(Task):
                 ip = line.rstrip()
                 os.system(
                     f"scp -o StrictHostKeyChecking=no -P ${ssh_port} -r "
-                    f" {output_dir} {ip}:{output_dir}"
+                    f" {output_dir} {ip}:{output_dir} "
+                    f" && ls -lh {self.data_path}"
                 )
+                logging.info(f"Finished to copy partition results to {ip}...")
 
         # Step2: data dispatch
         partition_dir = os.path.join(self.data_path, 'parted_data')
