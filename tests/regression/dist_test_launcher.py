@@ -15,20 +15,6 @@ def func_wrapper(func):
 
 
 @func_wrapper
-def graph_partition():
-    os.system(
-        "python3 /dgl/tests/regression/graph_partition/main.py"
-    )
-
-
-@func_wrapper
-def dist_train():
-    os.system(
-        "python3 /dgl/tests/regression/dist_train/main.py"
-    )
-
-
-@func_wrapper
 def report_gen():
     os.system(
         "python3 /dgl/tests/regression/report_generator.py"
@@ -62,7 +48,7 @@ def prepare_env():
 @func_wrapper
 def create_task(task_type, data_store, data_name):
     if task_type == "partition":
-        return PartitionTask(data_store, data_name)
+        return PartitionTask(data_store, data_name, 4)
     elif task_type == "train":
         return TrainTask(data_store, data_name)
     else:
@@ -101,29 +87,11 @@ if __name__ == '__main__':
     # prepare distributed compute environment
     prepare_env()
 
+    # run partition or train test
     task = create_task(args.task, args.data_store, args.data_name)
-
     task.run()
-
-
-    '''
-    # prepare raw data
-    prepare_data(dataset)
-
-    # non-main nodes starts to wait for completion of main node.
-    if os.environ["AWS_BATCH_JOB_MAIN_NODE_INDEX"] != \
-        os.environ["AWS_BATCH_JOB_NODE_INDEX"]:
-        logging.info("Child node goes to sleep now...")
-        time.sleep(60*60*24)
-
-    # graph partition
-    graph_partition(dataset)
-
-    # distributed train
-    dist_train()
 
     # report generation
     report_gen()
-    '''
 
     logging.info("Dist test launcher is done...")
