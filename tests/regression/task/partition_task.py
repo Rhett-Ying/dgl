@@ -48,6 +48,8 @@ class PartitionTask(Task):
                 )
                 logging.info(f"Finished to copy partition results to {ip}...")
 
+        import time
+        time.sleep(12345)
         # Step2: data dispatch
         partition_dir = os.path.join(self.data_path, 'parted_data')
         out_dir = os.path.join(self.data_path, 'partitioned')
