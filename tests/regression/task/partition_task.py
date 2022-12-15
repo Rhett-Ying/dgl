@@ -44,10 +44,12 @@ class PartitionTask(Task):
                 os.system(
                     f"rsync -avrz -e 'ssh -o StrictHostKeyChecking=no -p {ssh_port}' "
                     f" {output_dir} {ip}:{output_dir} "
-                    f" && ls -lh {self.data_path}"
+                    f" && ls -lh {self.data_path}/*"
                 )
                 logging.info(f"Finished to copy partition results to {ip}...")
-
+        os.system(
+            f"ls -lh {self.data_path}/*"
+        )
         import time
         time.sleep(12345)
         # Step2: data dispatch
