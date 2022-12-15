@@ -47,11 +47,14 @@ class PartitionTask(Task):
                     f" && ls -lh {self.data_path}/*"
                 )
                 logging.info(f"Finished to copy partition results to {ip}...")
-        os.system(
-            f"ls -lh {self.data_path}/*"
-        )
-        import time
-        time.sleep(12345)
+        with open(ip_config, 'r') as f:
+            for line in f:
+                ip = line.rstrip()
+                logging.info(f"IP: {ip}")
+                os.system(
+                    f"ssh -o StrictHostKeyChecking=no -p {ssh_port} {ip} 'ls -lh {self.data_path}/*'"
+                )
+
         # Step2: data dispatch
         partition_dir = os.path.join(self.data_path, 'parted_data')
         out_dir = os.path.join(self.data_path, 'partitioned')
