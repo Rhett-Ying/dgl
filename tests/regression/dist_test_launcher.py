@@ -3,6 +3,7 @@ import argparse
 import logging
 import sys
 import time
+from task import TrainTask, PartitionTask
 
 def func_wrapper(func):
     def wrap_func(*args, **kwargs):
@@ -53,6 +54,26 @@ def prepare_env():
     os.system("bash /dgl/tests/regression/dist_env_setup.sh")
 
 
+@func_wrapper
+def prepare_data(dataset):
+    workspace = os.environ.get('WORKSPACE', '/workspace')
+    data_path = os.path.join(workspace, dataset)
+    os.system(
+        f"python3 /dgl/tests/regression/data_store.py --dataset {dataset} "
+        f"--output_dir {data_path}"
+    )
+    os.environ["DATA_PATH"] = data_path
+
+
+@func_wrapper
+def create_task(task_type, data_store, data_name):
+    if task_type == "partition":
+        return PartitionTask(data_store, data_name)
+    elif task_type == "train":
+        return TrainTask(data_store, data_name)
+    else:
+        raise RuntimeError(f"Not supported task: {task_type}.")
+
 if __name__ == '__main__':
     fmt = "%(asctime)s %(levelname)s %(message)s"
     logging.basicConfig(format=fmt, level=logging.INFO)
@@ -63,10 +84,37 @@ if __name__ == '__main__':
         description="Distributed test launcher",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    _, _ = parser.parse_known_args()
+    parser.add_argument(
+        "--task",
+        type=str,
+        required=True,
+        help="task type: partition or train"
+    )
+    parser.add_argument(
+        "--data_store",
+        type=str,
+        required=True,
+        help="data store path like S3 URI which stores datasets"
+    )
+    parser.add_argument(
+        "--data_name",
+        type=str,
+        required=True,
+        help="target dataset name"
+    )
+    args, _ = parser.parse_known_args()
 
     # prepare distributed compute environment
     prepare_env()
+
+    task = create_task(args.task, args.data_store, args.data_name)
+
+    task.run()
+
+
+    '''
+    # prepare raw data
+    prepare_data(dataset)
 
     # non-main nodes starts to wait for completion of main node.
     if os.environ["AWS_BATCH_JOB_MAIN_NODE_INDEX"] != \
@@ -75,12 +123,13 @@ if __name__ == '__main__':
         time.sleep(60*60*24)
 
     # graph partition
-    graph_partition()
+    graph_partition(dataset)
 
     # distributed train
     dist_train()
 
     # report generation
     report_gen()
+    '''
 
     logging.info("Dist test launcher is done...")

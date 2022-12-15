@@ -9,7 +9,13 @@ if __name__ == '__main__':
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
-        "--dataset",
+        "--data_store",
+        type=str,
+        required=True,
+        help="data store like S3 URI"
+    )
+    parser.add_argument(
+        "--data_name",
         type=str,
         required=True,
         help="target dataset name to fetch"
@@ -22,11 +28,13 @@ if __name__ == '__main__':
     )
     args, _ = parser.parse_known_args()
 
+    src_dir = os.path.join(args.data_store, args.data_name)
+    dst_dir = os.path.join(args.output_dir, args.data_name)
     os.system(
-        f"aws s3 sync s3://dgl-data-store/{args.dataset} {args.output_dir}"
+        f"aws s3 sync {src_dir} {dst_dir}"
     )
     os.system(
-        f"ls -lh {args.output_dir}"
+        f"ls -lh {dst_dir}"
     )
 
-    logging.info(f"Finished to download {args.dataset} to {args.output_dir}")
+    logging.info(f"Finished to download {args.data_name} to {dst_dir}")
