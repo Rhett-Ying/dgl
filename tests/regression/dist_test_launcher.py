@@ -49,20 +49,14 @@ def prepare_env():
     os.environ["WORKSPACE"] = workspace
     os.environ["IP_CONFIG"] = os.path.join(workspace, "ip_config.txt")
     os.environ["SSH_PORT"] = "2233"
+    if os.environ["AWS_BATCH_JOB_MAIN_NODE_INDEX"] == \
+        os.environ["AWS_BATCH_JOB_NODE_INDEX"]:
+        os.environ["NODE_TYPE"] = "MAIN_NODE"
+    else:
+        os.environ["NODE_TYPE"] = "CHILD_NODE"
 
     # generate ip_config.txt
     os.system("bash /dgl/tests/regression/dist_env_setup.sh")
-
-
-@func_wrapper
-def prepare_data(dataset):
-    workspace = os.environ.get('WORKSPACE', '/workspace')
-    data_path = os.path.join(workspace, dataset)
-    os.system(
-        f"python3 /dgl/tests/regression/data_store.py --dataset {dataset} "
-        f"--output_dir {data_path}"
-    )
-    os.environ["DATA_PATH"] = data_path
 
 
 @func_wrapper
