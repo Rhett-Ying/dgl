@@ -12,7 +12,7 @@ RUN apt update && apt install -y \
         graphviz graphviz-dev libgraphviz-dev ca-certificates \
         systemd vim openssh-client openssh-server cmake \
         bzip2 ca-certificates curl git python3-dev net-tools \
-        awscli iputils-ping
+        awscli iputils-ping rsync
 
 # python packages
 RUN ["/bin/bash", "-c", "cd /tmp && wget https://bootstrap.pypa.io/get-pip.py && python3 get-pip.py && cd -"]

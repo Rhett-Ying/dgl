@@ -1,8 +1,6 @@
 # CI docker CPU env
 FROM dgllib/dgl-aws-batch-base-cpu:v221208
 
-RUN apt update && apt install -y rsync
-
 # PyTorch
 #RUN ["/bin/bash", "-c", "pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cpu"]
 

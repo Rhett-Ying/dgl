@@ -43,7 +43,6 @@ class PartitionTask(Task):
                 ip = line.rstrip()
                 os.system(
                     f"scp -r -o StrictHostKeyChecking=no -P {ssh_port} "
-                    #f"rsync -avrz -e 'ssh -o StrictHostKeyChecking=no -p {ssh_port}' "
                     f" {output_dir} {ip}:{output_dir} "
                 )
                 logging.info(f"Finished to copy partition results to {ip}...")
