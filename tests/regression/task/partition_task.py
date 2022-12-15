@@ -36,10 +36,13 @@ class PartitionTask(Task):
         ip_config = os.environ["IP_CONFIG"]
         ssh_port = os.environ["SSH_PORT"]
         with open(ip_config, 'r') as f:
-            for line in f:
+            for i, line in enumerate(f):
+                if i == 0:
+                    # skip current node
+                    continue
                 ip = line.rstrip()
                 os.system(
-                    f"scp -o StrictHostKeyChecking=no -P ${ssh_port} -r "
+                    f"rsync -avrz -e 'ssh -o StrictHostKeyChecking=no -p ${ssh_port}' "
                     f" {output_dir} {ip}:{output_dir} "
                     f" && ls -lh {self.data_path}"
                 )
