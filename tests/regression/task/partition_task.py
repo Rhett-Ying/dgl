@@ -6,10 +6,10 @@ import re
 from task import Task
 
 class PartitionTask(Task):
-    def __init__(self, data_store, data_name, num_parts):
-        self.data_store = data_store
-        self.data_name = data_name
-        self.num_parts = num_parts
+    def __init__(self, args):
+        self.data_store = args.data_store
+        self.data_name = args.data_name
+        self.num_parts = getattr(args, 'num_parts', default=4)
 
     def _prepare_data(self):
         workspace = os.environ.get('WORKSPACE', '/workspace')

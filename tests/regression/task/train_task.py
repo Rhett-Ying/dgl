@@ -3,7 +3,7 @@ import logging
 from task import Task
 
 class TrainTask(Task):
-    def __init__(self, data_store, data_name):
+    def __init__(self, args):
         pass
 
     def _prepare_data(self):

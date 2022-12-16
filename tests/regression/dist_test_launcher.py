@@ -3,7 +3,8 @@ import argparse
 import logging
 import sys
 import time
-from task import TrainTask, PartitionTask
+import importlib
+#from task import TrainTask, PartitionTask
 
 def func_wrapper(func):
     def wrap_func(*args, **kwargs):
@@ -46,7 +47,9 @@ def prepare_env():
 
 
 @func_wrapper
-def create_task(task_type, data_store, data_name):
+def create_task(task_type, udf_args):
+    task_mod = importlib.import_module('task')
+    return getattr(task_mod, task_type)(udf_args)
     if task_type == "partition":
         return PartitionTask(data_store, data_name, 4)
     elif task_type == "train":
@@ -70,6 +73,7 @@ if __name__ == '__main__':
         required=True,
         help="task type: partition or train"
     )
+    '''
     parser.add_argument(
         "--data_store",
         type=str,
@@ -82,13 +86,15 @@ if __name__ == '__main__':
         required=True,
         help="target dataset name"
     )
-    args, _ = parser.parse_known_args()
+    '''
+    args, udf_args = parser.parse_known_args()
 
     # prepare distributed compute environment
     prepare_env()
 
     # run partition or train test
-    task = create_task(args.task, args.data_store, args.data_name)
+    #task = create_task(args.task, args.data_store, args.data_name)
+    task = create_task(args.task, udf_args)
     task.run()
 
     # report generation
