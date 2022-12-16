@@ -2,14 +2,32 @@ import logging
 import os
 import time
 import re
+import argparse
 
 from task import Task
 
 class PartitionTask(Task):
-    def __init__(self, args):
+    def __init__(self):
+        parser = argparse.ArgumentParser(
+            description="Graph Partition Task",
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        )
+        parser.add_argument(
+            "--data_store",
+            type=str,
+            required=True,
+            help="data store path like S3 URI which stores datasets"
+        )
+        parser.add_argument(
+            "--data_name",
+            type=str,
+            required=True,
+            help="target dataset name"
+        )
+        args, _ = parser.parse_known_args()
         self.data_store = args.data_store
         self.data_name = args.data_name
-        self.num_parts = getattr(args, 'num_parts', default=4)
+        self.num_parts = 4
 
     def _prepare_data(self):
         workspace = os.environ.get('WORKSPACE', '/workspace')

@@ -47,9 +47,9 @@ def prepare_env():
 
 
 @func_wrapper
-def create_task(task_type, udf_args):
+def create_task(task_type):
     task_mod = importlib.import_module('task')
-    return getattr(task_mod, task_type)(udf_args)
+    return getattr(task_mod, task_type)()
     if task_type == "partition":
         return PartitionTask(data_store, data_name, 4)
     elif task_type == "train":
@@ -94,7 +94,7 @@ if __name__ == '__main__':
 
     # run partition or train test
     #task = create_task(args.task, args.data_store, args.data_name)
-    task = create_task(args.task, udf_args)
+    task = create_task(args.task)
     task.run()
 
     # report generation
