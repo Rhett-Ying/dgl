@@ -50,12 +50,7 @@ def prepare_env():
 def create_task(task_type):
     task_mod = importlib.import_module('task')
     return getattr(task_mod, task_type)()
-    if task_type == "partition":
-        return PartitionTask(data_store, data_name, 4)
-    elif task_type == "train":
-        return TrainTask(data_store, data_name)
-    else:
-        raise RuntimeError(f"Not supported task: {task_type}.")
+
 
 if __name__ == '__main__':
     fmt = "%(asctime)s %(levelname)s %(message)s"
@@ -73,27 +68,12 @@ if __name__ == '__main__':
         required=True,
         help="task type: partition or train"
     )
-    '''
-    parser.add_argument(
-        "--data_store",
-        type=str,
-        required=True,
-        help="data store path like S3 URI which stores datasets"
-    )
-    parser.add_argument(
-        "--data_name",
-        type=str,
-        required=True,
-        help="target dataset name"
-    )
-    '''
-    args, udf_args = parser.parse_known_args()
+    args, _ = parser.parse_known_args()
 
     # prepare distributed compute environment
     prepare_env()
 
     # run partition or train test
-    #task = create_task(args.task, args.data_store, args.data_name)
     task = create_task(args.task)
     task.run()
 

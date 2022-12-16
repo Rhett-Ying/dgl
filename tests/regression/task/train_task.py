@@ -45,9 +45,11 @@ class TrainTask(Task):
         os.system(f"ls -lh {self.data_path}")
         part_config = os.path.join(self.data_path, 'ogb-product.json')
         ip_config = os.environ['IP_CONFIG']
+        ssh_port = os.environ["SSH_PORT"]
         tic = time.time()
         os.system(
             f"python3 /dgl/tools/launch.py"
+            f" --ssh_port {ssh_port}"
             f" --workspace {workspace}"
             f" --num_trainers 1 --num_samplers 0 --num_servers 1"
             f" --part_config {part_config}"
