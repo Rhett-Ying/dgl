@@ -47,6 +47,7 @@ def prepare_env():
             "git clone https://github.com/Rhett-Ying/dgl.git --branch dist_aws_batch /dgl_"
         )
         os.environ['DGL_ROOT_DIR'] = '/dgl_'
+        logging.info('Latest DGL branch for test is fetched...')
 
 
     # check and defines required envs
