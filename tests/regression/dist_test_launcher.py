@@ -73,6 +73,8 @@ def prepare_env():
 
 @func_wrapper
 def create_task(task_type):
+    #[TODO]
+    '''
     mod_path = os.path.join(
         os.environ['DGL_ROOT_DIR'],
         'tests/regression'
@@ -83,8 +85,9 @@ def create_task(task_type):
     sys.modules[mod_name] = module
     spec.loader.exec_module(module)
     return getattr(module, task_type)()
-    #task_mod = importlib.import_module(mod_path)
-    #return getattr(task_mod, task_type)()
+    '''
+    task_mod = importlib.import_module('task')
+    return getattr(task_mod, task_type)()
 
 
 if __name__ == '__main__':
