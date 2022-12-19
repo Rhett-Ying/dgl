@@ -31,8 +31,12 @@ class TrainTask(Task):
         workspace = os.environ.get('WORKSPACE', '/workspace')
 
         # download partitioned graphs
+        script_path = os.path.join(
+            os.environ['DGL_ROOT_DIR'],
+            'tests/regression/data_store.py'
+        )
         os.system(
-            f"python3 /dgl/tests/regression/data_store.py"
+            f"python3 {script_path}"
             f" --data_store {self.data_store} "
             f" --data_name {self.data_name}"
             f" --output_dir {workspace}"
@@ -46,15 +50,23 @@ class TrainTask(Task):
         part_config = os.path.join(self.data_path, 'ogb-product.json')
         ip_config = os.environ['IP_CONFIG']
         ssh_port = os.environ["SSH_PORT"]
+        launch_path = os.path.join(
+            os.environ['DGL_ROOT_DIR'],
+            'tools/launch.py'
+        )
+        script_path = os.path.join(
+            os.environ['DGL_ROOT_DIR'],
+            'tests/regression/task/scripts/train_dist.py'
+        )
         tic = time.time()
         os.system(
-            f"python3 /dgl/tools/launch.py"
+            f"python3 {launch_path}"
             f" --ssh_port {ssh_port}"
             f" --workspace {workspace}"
             f" --num_trainers 1 --num_samplers 0 --num_servers 1"
             f" --part_config {part_config}"
             f" --ip_config {ip_config}"
-            f" 'python3 /dgl/tests/regression/task/scripts/train_dist.py"
+            f" 'python3 {script_path}"
             f" --graph_name ogb-product --ip_config {ip_config}"
             f" --num_epochs 5 --batch_size 1000"
             f" '"

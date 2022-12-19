@@ -33,8 +33,12 @@ class PartitionTask(Task):
         workspace = os.environ.get('WORKSPACE', '/workspace')
 
         # download raw data
+        bin_path = os.path.join(
+            os.environ['DGL_ROOT_DIR'],
+            'tests/regression/data_store.py'
+        )
         os.system(
-            f"python3 /dgl/tests/regression/data_store.py"
+            f"python3 {bin_path}"
             f" --data_store {self.data_store} "
             f" --data_name {self.data_name}"
             f" --output_dir {workspace}"
@@ -47,8 +51,12 @@ class PartitionTask(Task):
         # Step1: graph partition
         in_dir = os.path.join(self.data_path, "chunked-data")
         output_dir = os.path.join(self.data_path, "parted_data")
+        bin_path = os.path.join(
+            os.environ['DGL_ROOT_DIR'],
+            'tools/partition_algo/random_partition.py'
+        )
         os.system(
-            "python3 /dgl/tools/partition_algo/random_partition.py"
+            f"python3 {bin_path}"
             f" --in_dir {in_dir} --out_dir {output_dir}"
             f" --num_partitions {self.num_parts}"
         )
@@ -80,7 +88,11 @@ class PartitionTask(Task):
         out_dir = os.path.join(self.data_path, 'partitioned')
         in_dir = os.path.join(self.data_path, "chunked-data")
 
-        cmd = "python3 /dgl/tools/dispatch_data.py"
+        bin_path = os.path.join(
+            os.environ['DGL_ROOT_DIR'],
+            'tools/dispatch_data.py'
+        )
+        cmd = f"python3 {bin_path}"
         cmd += f" --in-dir {in_dir}"
         cmd += f" --partitions-dir {partition_dir}"
         cmd += f" --out-dir {out_dir}"

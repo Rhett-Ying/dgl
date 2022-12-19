@@ -17,9 +17,11 @@ def func_wrapper(func):
 
 @func_wrapper
 def report_gen():
-    os.system(
-        "python3 /dgl/tests/regression/report_generator.py"
+    bin_path = os.path.join(
+        os.environ['DGL_ROOT_DIR'],
+        'tests/regression/report_generator.py'
     )
+    os.system(f"python3 {bin_path}")
 
 
 @func_wrapper
@@ -28,6 +30,24 @@ def prepare_env():
     os.system(
         "service ssh restart"
     )
+
+    # install latest DGL nightly build
+    if 'DIST_TEST_SKIP_INSTALL' not in os.environ:
+        os.system(
+            'pip3 install --pre dgl -f https://data.dgl.ai/wheels-test/repo.html'
+        )
+        os.system(
+            "python3 -c 'import dgl;print(dgl.__version__)'"
+        )
+        logging.info('Latest DGL nightly build(CPU) is installed...')
+
+    os.environ['DGL_ROOT_DIR'] = '/dgl'
+    if 'DIST_TEST_SKIP_FETCH' not in os.environ:
+        os.system(
+            "git clone https://github.com/Rhett-Ying/dgl.git --branch dist_aws_batch /dgl_"
+        )
+        os.environ['DGL_ROOT_DIR'] = '/dgl_'
+
 
     # check and defines required envs
     workspace = os.environ.get("WORKSPACE", "/workspace")
@@ -43,7 +63,11 @@ def prepare_env():
         os.environ["NODE_TYPE"] = "CHILD_NODE"
 
     # generate ip_config.txt
-    os.system("bash /dgl/tests/regression/dist_env_setup.sh")
+    bin_path = os.path.join(
+        os.environ['DGL_ROOT_DIR'],
+        'tests/regression/dist_env_setup.sh'
+    )
+    os.system(f"bash {bin_path}")
 
 
 @func_wrapper
