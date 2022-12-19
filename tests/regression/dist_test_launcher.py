@@ -3,7 +3,7 @@ import argparse
 import logging
 import sys
 import time
-import importlib
+import importlib.util
 #from task import TrainTask, PartitionTask
 
 def func_wrapper(func):
@@ -75,10 +75,16 @@ def prepare_env():
 def create_task(task_type):
     mod_path = os.path.join(
         os.environ['DGL_ROOT_DIR'],
-        'tests/regression/task'
+        'tests/regression'
     )
-    task_mod = importlib.import_module(mod_path)
-    return getattr(task_mod, task_type)()
+    mod_name = 'task'
+    spec = importlib.util.spec_from_file_location(mod_name, mod_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[mod_name] = module
+    spec.loader.exec_module(module)
+    return getattr(module, task_type)()
+    #task_mod = importlib.import_module(mod_path)
+    #return getattr(task_mod, task_type)()
 
 
 if __name__ == '__main__':
