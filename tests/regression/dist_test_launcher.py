@@ -73,7 +73,11 @@ def prepare_env():
 
 @func_wrapper
 def create_task(task_type):
-    task_mod = importlib.import_module('task')
+    mod_path = os.path.join(
+        os.environ['DGL_ROOT_DIR'],
+        'tests/regression/task'
+    )
+    task_mod = importlib.import_module(mod_path)
     return getattr(task_mod, task_type)()
 
 
