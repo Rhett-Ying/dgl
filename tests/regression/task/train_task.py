@@ -80,3 +80,7 @@ class TrainTask(Task):
             f"######## Dataset: {self.data_name} \n"
             f"######## Time(seconds): {self.tic_toc:.3f} \n"
         )
+        logging.info(
+            f"DistDGL_RT_TrainTask_Metrics GraphSAGE {self.data_name}"
+            f" {self.tic_toc:.3f}"
+        )

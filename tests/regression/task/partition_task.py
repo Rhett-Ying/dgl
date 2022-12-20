@@ -118,6 +118,10 @@ class PartitionTask(Task):
             f"######## Time(seconds): {self.tic_toc:.3f} \n"
             f"######## Peak memory(GB): {get_peak_mem():.3f} \n"
         )
+        logging.info(
+            f"DistDGL_RT_PartitionTask_Metrics {self.data_name} {self.num_parts}"
+            f" {self.tic_toc:.3f} {get_peak_mem():.3f}"
+        )
 
 
 def get_peak_mem():
