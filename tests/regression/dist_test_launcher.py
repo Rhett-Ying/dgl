@@ -16,15 +16,6 @@ def func_wrapper(func):
 
 
 @func_wrapper
-def report_gen():
-    bin_path = os.path.join(
-        os.environ['DGL_ROOT_DIR'],
-        'tests/regression/report_generator.py'
-    )
-    os.system(f"python3 {bin_path}")
-
-
-@func_wrapper
 def prepare_env():
     # restart ssh service to enable port 2233
     os.system(
@@ -115,7 +106,5 @@ if __name__ == '__main__':
     task = create_task(args.task)
     task.run()
 
-    # report generation
-    report_gen()
 
     logging.info("Dist test launcher is done...")
