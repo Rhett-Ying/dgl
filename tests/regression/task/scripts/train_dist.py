@@ -277,10 +277,13 @@ def run(args, device, data):
                 device,
             )
             print(
-                "Part {}, Val Acc {:.4f}, Test Acc {:.4f}, time: {:.4f}".format
-                (
-                    g.rank(), val_acc, test_acc, time.time() - start
-                )
+                f"Task: Node_Classification\t"
+                f"Model: GraphSAGE\t"
+                f"Dataset: {args.graph_name}\t"
+                f"Part: {g.rank()}\t"
+                f"ValAcc: {val_acc:.4f}\t"
+                f"TestAcc: {test_acc:.4f}\t"
+                f"EvalTime: {time.time() - start:.4f}"
             )
 
 

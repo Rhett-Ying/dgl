@@ -68,7 +68,6 @@ class TrainTask(Task):
             f" --ip_config {ip_config}"
             f" 'python3 {script_path}"
             f" --graph_name ogb-product --ip_config {ip_config}"
-            f" --num_epochs 5 --batch_size 1000"
             f" '"
         )
         self.tic_toc = time.time() - tic
