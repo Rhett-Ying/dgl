@@ -285,8 +285,8 @@ def run(args, device, data):
                 args.batch_size_eval,
                 device,
             )
-            val_accs.append(val_acc)
-            test_accs.append(test_acc)
+            val_accs.append(val_acc.item())
+            test_accs.append(test_acc.item())
             eval_times.append(time.time() - start)
             print(
                 f"Task: Node_Classification\t"
