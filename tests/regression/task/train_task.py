@@ -2,6 +2,7 @@ import logging
 import os
 import time
 import argparse
+import json
 
 from task import Task
 
@@ -58,6 +59,7 @@ class TrainTask(Task):
             os.environ['DGL_ROOT_DIR'],
             'tests/regression/task/scripts/train_dist.py'
         )
+        self.metric_file = os.path.join(workspace, 'metric.log')
         tic = time.time()
         os.system(
             f"python3 {launch_path}"
@@ -68,9 +70,12 @@ class TrainTask(Task):
             f" --ip_config {ip_config}"
             f" 'python3 {script_path}"
             f" --graph_name ogb-product --ip_config {ip_config}"
+            f" --metric_file {self.metric_file}"
             f" '"
         )
         self.tic_toc = time.time() - tic
 
     def _print_metrics(self):
-        pass
+        os.system(
+            f"cat {self.metric_file}"
+        )

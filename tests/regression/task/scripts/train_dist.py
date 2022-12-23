@@ -1,6 +1,8 @@
 import argparse
 import socket
 import time
+from statistics import mean
+import json
 
 import numpy as np
 import torch as th
@@ -178,6 +180,10 @@ def run(args, device, data):
     # Training loop
     iter_tput = []
     epoch = 0
+    train_times = []
+    val_accs = []
+    test_accs = []
+    eval_times = []
     for epoch in range(args.num_epochs):
         tic = time.time()
 
@@ -264,6 +270,9 @@ def run(args, device, data):
         )
         epoch += 1
 
+        if epoch < 4:
+            continue
+        train_times.append(toc - tic)
         if epoch % args.eval_every == 0 and epoch != 0:
             start = time.time()
             val_acc, test_acc = evaluate(
@@ -276,6 +285,9 @@ def run(args, device, data):
                 args.batch_size_eval,
                 device,
             )
+            val_accs.append(val_acc)
+            test_accs.append(test_acc)
+            eval_times.append(time.time() - start)
             print(
                 f"Task: Node_Classification\t"
                 f"Model: GraphSAGE\t"
@@ -285,6 +297,17 @@ def run(args, device, data):
                 f"TestAcc: {test_acc:.4f}\t"
                 f"EvalTime: {time.time() - start:.4f}"
             )
+    with open(args.metric_file, 'w') as f:
+        data = {
+            "task": "node classification",
+            "model": "GraphSAGE",
+            "dataset": args.graph_name,
+            "train_time": mean(train_times),
+            "eval_time": mean(eval_times),
+            "val_acc": mean(val_accs),
+            "test_acc": mean(test_accs),
+        }
+        f.write(json.dumps(data))
 
 
 def main(args):
@@ -414,6 +437,9 @@ if __name__ == "__main__":
         type=str,
         default="socket",
         help="backend net type, 'socket' or 'tensorpipe'",
+    )
+    parser.add_argument(
+        "--metric_file", type=str, help="The file to store metrics"
     )
     args = parser.parse_args()
 
