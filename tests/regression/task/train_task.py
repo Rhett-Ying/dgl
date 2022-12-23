@@ -73,13 +73,4 @@ class TrainTask(Task):
         self.tic_toc = time.time() - tic
 
     def _print_metrics(self):
-        logging.info(
-            f"-------------- metrics ---------------- \n"
-            f"######## Task: Distributed Train (GraphSAGE) \n"
-            f"######## Dataset: {self.data_name} \n"
-            f"######## Time(seconds): {self.tic_toc:.3f} \n"
-        )
-        logging.info(
-            f"DistDGL_RT_TrainTask_Metrics GraphSAGE {self.data_name}"
-            f" {self.tic_toc:.3f}"
-        )
+        pass
