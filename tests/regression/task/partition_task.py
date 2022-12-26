@@ -3,6 +3,7 @@ import os
 import time
 import re
 import argparse
+import json
 
 from task import Task
 
@@ -110,17 +111,18 @@ class PartitionTask(Task):
         )
 
     def _print_metrics(self):
-        logging.info(
-            f"-------------- metrics ---------------- \n"
-            f"######## Task: Graph Partition [Dispatch data] \n"
-            f"######## Dataset: {self.data_name} \n"
-            f"######## Num_parts: {self.num_parts} \n"
-            f"######## Time(seconds): {self.tic_toc:.3f} \n"
-            f"######## Peak memory(GB): {get_peak_mem():.3f} \n"
-        )
-        logging.info(
-            f"DistDGL_RT_PartitionTask_Metrics {self.data_name} {self.num_parts}"
-            f" {self.tic_toc:.3f} {get_peak_mem():.3f}"
+        workspace = os.environ.get('WORKSPACE', '/workspace')
+        self.metric_file = os.path.join(workspace, 'metric.log')
+        with open(self.metric_file, 'w') as f:
+            data = {
+                "task": "Graph Partition Pipeline",
+                "dataset": self.data_name,
+                "num_parts": self.num_parts,
+                "partition_time": self.tic_toc,
+            }
+            f.write(json.dumps(data))
+        os.system(
+            f"cat {self.metric_file}"
         )
 
 
