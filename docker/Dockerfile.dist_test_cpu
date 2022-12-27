@@ -1,0 +1,15 @@
+# CI docker CPU env
+FROM dgllib/dgl-aws-batch-base-cpu:v221208
+
+# PyTorch
+#RUN ["/bin/bash", "-c", "pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cpu"]
+
+# DGL
+RUN ["/bin/bash", "-c", "pip3 install --pre dgl -f https://data.dgl.ai/wheels-test/repo.html"]
+
+# DGL tools
+RUN ["/bin/bash", "-c", "git clone https://github.com/Rhett-Ying/dgl.git --branch dist_aws_batch"]
+
+# Environment variables
+ENV PYTHONPATH=${PWD}/dgl/tools:${PYTHONPATH}
+
