@@ -6,7 +6,7 @@ from typing import Optional
 import torch
 from torch.utils.data import default_collate
 from torchdata.datapipes import functional_datapipe
-from torchdata.datapipes.iter import IterDataPipe
+from torchdata.datapipes.iter import IterDataPipe, IterableWrapper
 from .itemset import *
 from ..batch import batch as dgl_batch
 from ..heterograph import DGLGraph
@@ -49,8 +49,8 @@ def colloate(batch):
         }
     return default_collate(batch)
 
-
-class MinibatchSampler:
+@functional_datapipe("graphbolt_batch")
+class MinibatchSampler(IterDataPipe):
     """Minibatch Sampler.
 
     This sampler generates mini-batches from input `ItemSet` according to
@@ -64,13 +64,14 @@ class MinibatchSampler:
         shuffle: Optional[bool] = False,
         drop_last: Optional[bool] = False,
     ):
+        super().__init__()
         self.item_set = item_set
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.drop_last = drop_last
 
     def __iter__(self):
-        data_pipe = DGLMinibatcherIterDataPipe(self.item_set)
+        data_pipe = IterableWrapper(self.item_set)
         if self.shuffle:
             data_pipe = data_pipe.shuffle()
         data_pipe = data_pipe.batch(
