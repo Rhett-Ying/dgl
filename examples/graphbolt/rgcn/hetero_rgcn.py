@@ -88,7 +88,7 @@ def prepare_data(args, device):
     datapipe = (
         gb.ItemSampler(train_set, batch_size=1024, shuffle=True)
         .sample_neighbor(graph, fanouts=[25, 20])
-        .fetch_feature(features, ["feat", "year"])
+        .fetch_feature(features, {"paper": ["feat", "year"]})
         .copy_to(device)
     )
 
@@ -255,6 +255,7 @@ class RelGraphConvLayer(nn.Module):
         # only on the destination nodes' features. By doing so, we ensure the
         # feature dimensions match and prevent any misuse of incorrect node
         # features.
+        print(inputs)
         inputs_dst = {
             k: v[: g.number_of_dst_nodes(k)] for k, v in inputs.items()
         }
@@ -425,7 +426,8 @@ def train(
                 {category: data.node_features}
             )
 
-            emb = {k: e.to(device) for k, e in emb.items()}
+            # AttributeError: 'dict' object has no attribute 'to'
+            #emb = {k: e.to(device) for k, e in emb.items()}
             #lbl = labels[seeds].to(device)
 
             # Reset gradients.
