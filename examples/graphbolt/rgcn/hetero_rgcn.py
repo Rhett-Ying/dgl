@@ -393,47 +393,48 @@ def train(
     run,
 ):
     print("start training...")
-    labels = None
-    return logger
     category = "paper"
 
     # Typically, the best Validation performance is obtained after
     # the 1st or 2nd epoch. This is why the max epoch is set to 3.
     for epoch in range(3):
-        num_train = split_idx["train"][category].shape[0]
+        #num_train = split_idx["train"][category].shape[0]
+        num_train = len(split_idx["train"])
         model.train()
 
         total_loss = 0
 
-        for input_nodes, seeds, blocks in tqdm(
+        #for input_nodes, seeds, blocks in tqdm(
+        for data in tqdm(
             train_loader, desc=f"Epoch {epoch:02d}"
         ):
+            batch_size = data.seed_nodes[category].shape[0]
             # Move the input data onto the device.
-            blocks = [blk.to(device) for blk in blocks]
+            #blocks = [blk.to(device) for blk in blocks]
             # We only predict the nodes with type "category".
-            seeds = seeds[category]
-            batch_size = seeds.shape[0]
-            input_nodes_indexes = input_nodes[category].to(g.device)
-            seeds = seeds.to(labels.device)
+            #seeds = seeds[category]
+            #batch_size = seeds.shape[0]
+            #input_nodes_indexes = input_nodes[category].to(g.device)
+            #seeds = seeds.to(labels.device)
 
             # Extract node embeddings for the input nodes.
-            emb = extract_embed(node_embed, input_nodes)
+            emb = extract_embed(node_embed, data.input_nodes)
             # Add the batch's raw "paper" features. Corresponds to the content
             # in the function `rel_graph_embed` comment.
             emb.update(
-                {category: g.ndata["feat"][category][input_nodes_indexes]}
+                {category: data.node_features}
             )
 
             emb = {k: e.to(device) for k, e in emb.items()}
-            lbl = labels[seeds].to(device)
+            #lbl = labels[seeds].to(device)
 
             # Reset gradients.
             optimizer.zero_grad()
             # Generate predictions.
-            logits = model(emb, blocks)[category]
+            logits = model(emb, data.to_dgl_graphs())[category]
 
             y_hat = logits.log_softmax(dim=-1)
-            loss = F.nll_loss(y_hat, lbl)
+            loss = F.nll_loss(y_hat, data.labels)
             loss.backward()
             optimizer.step()
 
@@ -442,6 +443,8 @@ def train(
         loss = total_loss / num_train
 
         # Evaluate the model on the test set.
+        print("Evaluating the model on the test set.")
+        '''
         result = test(g, model, node_embed, labels, device, split_idx)
         logger.add_result(run, result)
         train_acc, valid_acc, test_acc = result
@@ -453,6 +456,8 @@ def train(
             f"Valid: {100 * valid_acc:.2f}%, "
             f"Test: {100 * test_acc:.2f}%"
         )
+        '''
+        print("Finish evaluating on test set.")
 
     return logger
 
