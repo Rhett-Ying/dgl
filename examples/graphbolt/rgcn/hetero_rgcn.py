@@ -433,7 +433,7 @@ def train(
             # Reset gradients.
             optimizer.zero_grad()
             # Generate predictions.
-            logits = model(emb, data.to_dgl_graphs())[category]
+            logits = model(emb, data.to_dgl_blocks())[category]
 
             y_hat = logits.log_softmax(dim=-1)
             loss = F.nll_loss(y_hat, data.labels)
