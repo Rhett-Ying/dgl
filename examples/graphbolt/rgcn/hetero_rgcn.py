@@ -50,8 +50,6 @@ import argparse
 import itertools
 import sys
 
-import dgl
-
 import dgl.graphbolt as gb
 import dgl.nn as dglnn
 
@@ -60,14 +58,13 @@ import psutil
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
-from dgl import AddReverse, Compose, ToSimple
 from dgl.nn import HeteroEmbedding
-from ogb.nodeproppred import DglNodePropPredDataset, Evaluator
+from ogb.nodeproppred import Evaluator
 from tqdm import tqdm
 
 
 def prepare_data(args, device):
-    dataset = gb.OnDiskDataset(args.yaml_dir).load()
+    dataset = gb.BuiltinDataset(args.dataset).load()
     print(f"Loaded dataset: {dataset.tasks[0].metadata['name']}")
 
     graph = dataset.graph
@@ -94,7 +91,7 @@ def prepare_data(args, device):
 
     train_dl = gb.MultiProcessDataLoader(datapipe, num_workers=args.num_workers)
 
-    return graph, num_classes, split_idx, train_dl
+    return graph, num_classes, split_idx, train_dl, features
 
 
 def extract_embed(node_embed, input_nodes):
@@ -255,7 +252,6 @@ class RelGraphConvLayer(nn.Module):
         # only on the destination nodes' features. By doing so, we ensure the
         # feature dimensions match and prevent any misuse of incorrect node
         # features.
-        print(inputs)
         inputs_dst = {
             k: v[: g.number_of_dst_nodes(k)] for k, v in inputs.items()
         }
@@ -289,7 +285,9 @@ class EntityClassify(nn.Module):
 
         # Generate and sort a list of unique edge types from the input graph.
         # eg. ['writes', 'cites']
-        self.relation_names = list(graph.metadata.edge_type_to_id.keys())
+        etypes = list(graph.metadata.edge_type_to_id.keys())
+        etypes = [gb.etype_str_to_tuple(etype)[1] for etype in etypes]
+        self.relation_names = etypes
         self.relation_names.sort()
         self.dropout = 0.5
         ntypes = list(graph.metadata.node_type_to_id.keys())
@@ -392,43 +390,28 @@ def train(
     logger,
     device,
     run,
+    features,
 ):
     print("start training...")
     category = "paper"
 
     # Typically, the best Validation performance is obtained after
     # the 1st or 2nd epoch. This is why the max epoch is set to 3.
-    for epoch in range(3):
-        #num_train = split_idx["train"][category].shape[0]
+    # for epoch in range(3):
+    for epoch in range(1):
+        # num_train = split_idx["train"][category].shape[0]
         num_train = len(split_idx["train"])
         model.train()
 
         total_loss = 0
 
-        #for input_nodes, seeds, blocks in tqdm(
-        for data in tqdm(
-            train_loader, desc=f"Epoch {epoch:02d}"
-        ):
+        for data in tqdm(train_loader, desc=f"Epoch {epoch:02d}"):
             batch_size = data.seed_nodes[category].shape[0]
-            # Move the input data onto the device.
-            #blocks = [blk.to(device) for blk in blocks]
-            # We only predict the nodes with type "category".
-            #seeds = seeds[category]
-            #batch_size = seeds.shape[0]
-            #input_nodes_indexes = input_nodes[category].to(g.device)
-            #seeds = seeds.to(labels.device)
-
             # Extract node embeddings for the input nodes.
             emb = extract_embed(node_embed, data.input_nodes)
             # Add the batch's raw "paper" features. Corresponds to the content
             # in the function `rel_graph_embed` comment.
-            emb.update(
-                {category: data.node_features}
-            )
-
-            # AttributeError: 'dict' object has no attribute 'to'
-            #emb = {k: e.to(device) for k, e in emb.items()}
-            #lbl = labels[seeds].to(device)
+            emb.update({category: data.node_features[(category, "feat")]})
 
             # Reset gradients.
             optimizer.zero_grad()
@@ -436,20 +419,35 @@ def train(
             logits = model(emb, data.to_dgl_blocks())[category]
 
             y_hat = logits.log_softmax(dim=-1)
-            loss = F.nll_loss(y_hat, data.labels)
+            loss = F.nll_loss(y_hat, data.labels[category])
             loss.backward()
             optimizer.step()
 
             total_loss += loss.item() * batch_size
+            break
 
         loss = total_loss / num_train
 
-        # Evaluate the model on the test set.
+        # Evaluate the model on the train/val/test set.
+        print("Evaluating the model on the training set.")
+        train_acc = evaluate(
+            g, model, node_embed, device, split_idx["train"], features
+        )
+        print("Finish evaluating on training set.")
+
+        print("Evaluating the model on the validation set.")
+        valid_acc = evaluate(
+            g, model, node_embed, device, split_idx["valid"], features
+        )
+        print("Finish evaluating on validation set.")
+
         print("Evaluating the model on the test set.")
-        '''
-        result = test(g, model, node_embed, labels, device, split_idx)
-        logger.add_result(run, result)
-        train_acc, valid_acc, test_acc = result
+        test_acc = evaluate(
+            g, model, node_embed, device, split_idx["test"], features
+        )
+        print("Finish evaluating on test set.")
+
+        logger.add_result(run, (train_acc, valid_acc, test_acc))
         print(
             f"Run: {run + 1:02d}, "
             f"Epoch: {epoch +1 :02d}, "
@@ -458,14 +456,13 @@ def train(
             f"Valid: {100 * valid_acc:.2f}%, "
             f"Test: {100 * test_acc:.2f}%"
         )
-        '''
         print("Finish evaluating on test set.")
 
     return logger
 
 
 @th.no_grad()
-def test(g, model, node_embed, y_true, device, split_idx):
+def evaluate(g, model, node_embed, device, item_set, features):
     # Switches the model to evaluation mode.
     model.eval()
     category = "paper"
@@ -483,65 +480,44 @@ def test(g, model, node_embed, y_true, device, split_idx):
     # prefer a balance between computational efficiency and model accuracy,
     # hence only a subset of neighbors is sampled.
     ######################################################################
-    sampler = dgl.dataloading.MultiLayerFullNeighborSampler(2)
-    loader = dgl.dataloading.DataLoader(
-        g,
-        {category: th.arange(g.num_nodes(category))},
-        sampler,
-        batch_size=16384,
-        shuffle=False,
-        num_workers=0,
-        device=device,
+
+    # Merge train_set, valid_set and test_set into one set.
+    datapipe = (
+        gb.ItemSampler(item_set, batch_size=1024, shuffle=False)
+        .sample_neighbor(g, fanouts=[-1, -1])
+        .fetch_feature(features, {"paper": ["feat", "year"]})
+        .copy_to(device)
+    )
+
+    data_loader = gb.MultiProcessDataLoader(
+        datapipe, num_workers=args.num_workers
     )
 
     # To store the predictions.
     y_hats = list()
+    y_true = list()
 
-    for input_nodes, seeds, blocks in tqdm(loader, desc="Inference"):
-        blocks = [blk.to(device) for blk in blocks]
-        # We only predict the nodes with type "category".
-        seeds = seeds[category]
-        input_nodes_indexes = input_nodes[category].to(g.device)
-
+    for data in tqdm(data_loader, desc="Inference"):
         # Extract node embeddings for the input nodes.
-        emb = extract_embed(node_embed, input_nodes)
-        # Add the batch's raw "paper" features.
-        # Corresponds to the content in the function `rel_graph_embed` comment.
-        emb.update({category: g.ndata["feat"][category][input_nodes_indexes]})
-        emb = {k: e.to(device) for k, e in emb.items()}
+        emb = extract_embed(node_embed, data.input_nodes)
+        # Add the batch's raw "paper" features. Corresponds to the content
+        # in the function `rel_graph_embed` comment.
+        emb.update({category: data.node_features[(category, "feat")]})
 
         # Generate predictions.
-        logits = model(emb, blocks)[category]
+        logits = model(emb, data.to_dgl_blocks())[category]
+
         # Apply softmax to the logits and get the prediction by selecting the
         # argmax.
         y_hat = logits.log_softmax(dim=-1).argmax(dim=1, keepdims=True)
         y_hats.append(y_hat.cpu())
+        y_true.append(data.labels[category].cpu())
 
     y_pred = th.cat(y_hats, dim=0)
+    y_true = th.cat(y_true, dim=0)
     y_true = th.unsqueeze(y_true, 1)
 
-    # Calculate the accuracy of the predictions for the train, valid and
-    # test splits.
-    train_acc = evaluator.eval(
-        {
-            "y_true": y_true[split_idx["train"]["paper"]],
-            "y_pred": y_pred[split_idx["train"]["paper"]],
-        }
-    )["acc"]
-    valid_acc = evaluator.eval(
-        {
-            "y_true": y_true[split_idx["valid"]["paper"]],
-            "y_pred": y_pred[split_idx["valid"]["paper"]],
-        }
-    )["acc"]
-    test_acc = evaluator.eval(
-        {
-            "y_true": y_true[split_idx["test"]["paper"]],
-            "y_pred": y_pred[split_idx["test"]["paper"]],
-        }
-    )["acc"]
-
-    return train_acc, valid_acc, test_acc
+    return evaluator.eval({"y_true": y_true, "y_pred": y_pred})["acc"]
 
 
 def main(args):
@@ -551,7 +527,9 @@ def main(args):
     logger = Logger(args.runs)
 
     # Prepare data.
-    g, num_classes, split_idx, train_loader = prepare_data(args, device)
+    g, num_classes, split_idx, train_loader, features = prepare_data(
+        args, device
+    )
 
     # Create the embedding layer and move it to the appropriate device.
     embed_layer = rel_graph_embed(g, 128).to(device)
@@ -616,6 +594,7 @@ def main(args):
             logger,
             device,
             run,
+            features,
         )
         logger.print_statistics(run)
 
@@ -626,9 +605,9 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="GraphBolt RGCN")
     parser.add_argument(
-        "--yaml_dir",
+        "--dataset",
         type=str,
-        default="/home/ubuntu/workspace/gb_examples/datasets/ogbn-mag",
+        default="ogbn-mag",
     )
     parser.add_argument("--runs", type=int, default=10)
     parser.add_argument("--num_workers", type=int, default=0)
