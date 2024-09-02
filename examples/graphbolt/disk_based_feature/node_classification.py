@@ -458,7 +458,11 @@ def main():
     if args.cpu_cache_size_in_gigabytes > 0 and isinstance(
         features[("node", None, "feat")], gb.DiskBasedFeature
     ):
-        cache_type = gb.CPUFeatureCache if args.cache_version == 1 else gb.CPUFeatureCache2
+        cache_type = (
+            gb.CPUFeatureCache
+            if args.cache_version == 1
+            else gb.CPUFeatureCache2
+        )
         features[("node", None, "feat")] = gb.cpu_cached_feature(
             features[("node", None, "feat")],
             int(args.cpu_cache_size_in_gigabytes * 1024 * 1024 * 1024),

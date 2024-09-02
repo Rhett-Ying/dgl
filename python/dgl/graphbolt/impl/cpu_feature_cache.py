@@ -281,4 +281,4 @@ class CPUFeatureCache2(object):
     @property
     def miss_rate(self):
         """Returns the cache miss rate since creation."""
-        return 0 #self.total_miss / self.total_queries
+        return 0
