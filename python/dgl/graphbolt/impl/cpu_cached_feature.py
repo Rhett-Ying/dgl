@@ -461,6 +461,7 @@ class CPUCachedFeature(Feature):
         """Returns the cache miss rate since creation."""
         return self._feature.miss_rate
 
+
 def cpu_cached_feature(
     fallback_features: Union[Feature, Dict[FeatureKey, Feature]],
     max_cache_size_in_bytes: int,
