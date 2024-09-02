@@ -458,12 +458,13 @@ def main():
     if args.cpu_cache_size_in_gigabytes > 0 and isinstance(
         features[("node", None, "feat")], gb.DiskBasedFeature
     ):
-        cached_feature_func = gb.cpu_cached_feature if args.cache_version == 1 else gb.cpu_cached_feature2
-        features[("node", None, "feat")] = cached_feature_func(
+        cache_type = gb.CPUFeatureCache if args.cache_version == 1 else gb.CPUFeatureCache2
+        features[("node", None, "feat")] = gb.cpu_cached_feature(
             features[("node", None, "feat")],
             int(args.cpu_cache_size_in_gigabytes * 1024 * 1024 * 1024),
             args.cpu_feature_cache_policy,
             args.feature_device == "pinned",
+            cache_type=cache_type,
         )
         cpu_cached_feature = features[("node", None, "feat")]
         cpu_cache_miss_rate_fn = lambda: cpu_cached_feature.miss_rate
