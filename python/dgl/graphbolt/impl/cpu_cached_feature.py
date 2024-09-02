@@ -467,6 +467,7 @@ def cpu_cached_feature(
     max_cache_size_in_bytes: int,
     policy: Optional[str] = None,
     pin_memory: bool = False,
+    cache_type: Optional[type] = CPUFeatureCache,
 ) -> Union[CPUCachedFeature, Dict[FeatureKey, CPUCachedFeature]]:
     r"""CPU cached feature wrapping a fallback feature.
 
@@ -490,6 +491,7 @@ def cpu_cached_feature(
     Union[CPUCachedFeature, Dict[FeatureKey, CPUCachedFeature]]
         New feature(s) wrapped with CPUCachedFeature.
     """
+    CPUCachedFeature._cache_type = cache_type
     return wrap_with_cached_feature(
         CPUCachedFeature,
         fallback_features,
