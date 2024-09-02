@@ -11,9 +11,9 @@ from ..feature_store import (
     wrap_with_cached_feature,
 )
 
-from .cpu_feature_cache import CPUFeatureCache
+from .cpu_feature_cache import CPUFeatureCache, CPUFeatureCache2
 
-__all__ = ["CPUCachedFeature", "cpu_cached_feature"]
+__all__ = ["CPUCachedFeature", "cpu_cached_feature", "cpu_cached_feature2"]
 
 
 class CPUCachedFeature(Feature):
@@ -462,6 +462,155 @@ class CPUCachedFeature(Feature):
         return self._feature.miss_rate
 
 
+class CPUCachedFeature2(Feature):
+    r"""CPU cached feature wrapping a fallback feature. Use `cpu_cached_feature2`
+    to construct an instance of this class.
+
+    Parameters
+    ----------
+    fallback_feature : Feature
+        The fallback feature.
+    cache : CPUFeatureCache2
+        A CPUFeatureCache2 instance to serve as the cache backend.
+    offset : int, optional
+        The offset value to add to the given ids before using the cache. This
+        parameter is useful if multiple `CPUCachedFeature2`s are sharing a single
+        CPUFeatureCache object.
+    """
+
+    _cache_type = CPUFeatureCache2
+
+    def __init__(
+        self,
+        fallback_feature: Feature,
+        cache: CPUFeatureCache2,
+        offset: int = 0,
+    ):
+        super(CPUCachedFeature2, self).__init__()
+        assert isinstance(fallback_feature, Feature), (
+            f"The fallback_feature must be an instance of Feature, but got "
+            f"{type(fallback_feature)}."
+        )
+        self._fallback_feature = fallback_feature
+        self._feature = cache
+        self._offset = offset
+
+    def read(self, ids: torch.Tensor = None):
+        """Read the feature by index.
+
+        Parameters
+        ----------
+        ids : torch.Tensor, optional
+            The index of the feature. If specified, only the specified indices
+            of the feature are read. If None, the entire feature is returned.
+
+        Returns
+        -------
+        torch.Tensor
+            The read feature.
+        """
+        if ids is None:
+            return self._fallback_feature.read()
+        return self._feature.query_and_replace(
+            ids.cpu(), self._fallback_feature.read, self._offset
+        ).to(ids.device)
+
+    def read_async(self, ids: torch.Tensor):
+        r"""Read the feature by index asynchronously.
+
+        Parameters
+        ----------
+        ids : torch.Tensor
+            The index of the feature. Only the specified indices of the
+            feature are read.
+        Returns
+        -------
+        A generator object.
+            The returned generator object returns a future on
+            ``read_async_num_stages(ids.device)``\ th invocation. The return result
+            can be accessed by calling ``.wait()``. on the returned future object.
+            It is undefined behavior to call ``.wait()`` more than once.
+
+        Examples
+        --------
+        >>> import dgl.graphbolt as gb
+        >>> feature = gb.Feature(...)
+        >>> ids = torch.tensor([0, 2])
+        >>> for stage, future in enumerate(feature.read_async(ids)):
+        ...     pass
+        >>> assert stage + 1 == feature.read_async_num_stages(ids.device)
+        >>> result = future.wait()  # result contains the read values.
+        """
+        raise NotImplementedError
+
+    def read_async_num_stages(self, ids_device: torch.device):
+        """The number of stages of the read_async operation. See read_async
+        function for directions on its use. This function is required to return
+        the number of yield operations when read_async is used with a tensor
+        residing on ids_device.
+
+        Parameters
+        ----------
+        ids_device : torch.device
+            The device of the ids parameter passed into read_async.
+        Returns
+        -------
+        int
+            The number of stages of the read_async operation.
+        """
+        raise NotImplementedError
+
+    def size(self):
+        """Get the size of the feature.
+
+        Returns
+        -------
+        torch.Size
+            The size of the feature.
+        """
+        return self._fallback_feature.size()
+
+    def count(self):
+        """Get the count of the feature.
+
+        Returns
+        -------
+        int
+            The count of the feature.
+        """
+        return self._fallback_feature.count()
+
+    def update(self, value: torch.Tensor, ids: torch.Tensor = None):
+        """Update the feature.
+
+        Parameters
+        ----------
+        value : torch.Tensor
+            The updated value of the feature.
+        ids : torch.Tensor, optional
+            The indices of the feature to update. If specified, only the
+            specified indices of the feature will be updated. For the feature,
+            the `ids[i]` row is updated to `value[i]`. So the indices and value
+            must have the same length. If None, the entire feature will be
+            updated.
+        """
+        raise NotImplementedError
+
+    def is_pinned(self):
+        """Returns True if the cache storage is pinned."""
+        return self._feature.is_pinned()
+
+    @property
+    def cache_size_in_bytes(self):
+        """Return the size taken by the cache in bytes."""
+        return self._feature.max_size_in_bytes
+
+    @property
+    def miss_rate(self):
+        """Returns the cache miss rate since creation."""
+        return self._feature.miss_rate
+
+
 def cpu_cached_feature(
     fallback_features: Union[Feature, Dict[FeatureKey, Feature]],
     max_cache_size_in_bytes: int,
@@ -492,6 +641,43 @@ def cpu_cached_feature(
     """
     return wrap_with_cached_feature(
         CPUCachedFeature,
+        fallback_features,
+        max_cache_size_in_bytes,
+        policy=policy,
+        pin_memory=pin_memory,
+    )
+
+
+def cpu_cached_feature2(
+    fallback_features: Union[Feature, Dict[FeatureKey, Feature]],
+    max_cache_size_in_bytes: int,
+    policy: Optional[str] = None,
+    pin_memory: bool = False,
+) -> Union[CPUCachedFeature2, Dict[FeatureKey, CPUCachedFeature2]]:
+    r"""CPU cached feature wrapping a fallback feature.
+
+    Parameters
+    ----------
+    fallback_features : Union[Feature, Dict[FeatureKey, Feature]]
+        The fallback feature(s).
+    max_cache_size_in_bytes : int
+        The capacity of the cache in bytes. The size should be a few factors
+        larger than the size of each read request. Otherwise, the caching policy
+        will hang due to all cache entries being read and/or write locked,
+        resulting in a deadlock.
+    policy : str, optional
+        The cache eviction policy algorithm name. The available policies are
+        ["s3-fifo", "sieve", "lru", "clock"]. Default is "sieve".
+    pin_memory : bool, optional
+        Whether the cache storage should be allocated on system pinned memory.
+        Default is False.
+    Returns
+    -------
+    Union[CPUCachedFeature2, Dict[FeatureKey, CPUCachedFeature2]]
+        New feature(s) wrapped with CPUCachedFeature2.
+    """
+    return wrap_with_cached_feature(
+        CPUCachedFeature2,
         fallback_features,
         max_cache_size_in_bytes,
         policy=policy,

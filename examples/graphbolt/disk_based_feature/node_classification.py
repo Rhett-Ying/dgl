@@ -393,6 +393,7 @@ def parse_args():
     )
     parser.add_argument("--precision", type=str, default="high")
     parser.add_argument("--enable-inference", action="store_true")
+    parser.add_argument("--cache-version", type=int, default=1)
     return parser.parse_args()
 
 
@@ -457,7 +458,8 @@ def main():
     if args.cpu_cache_size_in_gigabytes > 0 and isinstance(
         features[("node", None, "feat")], gb.DiskBasedFeature
     ):
-        features[("node", None, "feat")] = gb.cpu_cached_feature(
+        cached_feature_func = gb.cpu_cached_feature if args.cache_version == 1 else gb.cpu_cached_feature2
+        features[("node", None, "feat")] = cached_feature_func(
             features[("node", None, "feat")],
             int(args.cpu_cache_size_in_gigabytes * 1024 * 1024 * 1024),
             args.cpu_feature_cache_policy,
