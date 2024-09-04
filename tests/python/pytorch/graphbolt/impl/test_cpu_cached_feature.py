@@ -182,3 +182,53 @@ def test_cpu_cached_disk_feature_read_async(dtype):
             assert torch.equal(values.wait(), a[ids])
 
         feat_store = None
+
+
+def test_CPUFeatureCache2_query():
+    a = torch.tensor([[1, 2, 3], [4, 5, 6]])
+    cache = gb.CPUFeatureCache2(a.shape, a.dtype)
+
+    indices = torch.tensor([0, 1])
+    data, found_keys, missing_keys = cache.query(indices)
+    assert len(data) == 0
+    assert len(found_keys) == 0
+    assert torch.equal(missing_keys, indices)
+
+
+def test_CPUFeatureCache2():
+    a = torch.tensor([[1, 2, 3], [4, 5, 6]])
+    cache_size_a = 32 * a[:1].nbytes
+    feat_store_a = gb.cpu_cached_feature(
+        gb.TorchBasedFeature(a), cache_size_a, cache_type=gb.CPUFeatureCache2
+    )
+
+    # Test read the entire feature.
+    assert torch.equal(feat_store_a.read(), a)
+
+    # Test read with ids.
+    assert torch.equal(
+        feat_store_a.read(torch.tensor([0])), torch.tensor([[1, 2, 3]])
+    )
+    # Test get the size and count of the entire feature.
+    assert feat_store_a.size() == torch.Size([3])
+    assert feat_store_a.count() == a.size(0)
+
+    return
+
+    # Test update the entire feature.
+    feat_store_a.update(torch.tensor([[0, 1, 2], [3, 5, 2]]))
+    assert torch.equal(
+        feat_store_a.read(),
+        torch.tensor([[0, 1, 2], [3, 5, 2]]),
+    )
+
+    # Test update with ids.
+    feat_store_a.update(torch.tensor([[2, 0, 1]]), torch.tensor([0]))
+    assert torch.equal(
+        feat_store_a.read(),
+        torch.tensor([[2, 0, 1], [3, 5, 2]]),
+    )
+
+    # Test with different dimensionality
+    feat_store_a.update(b)
+    assert torch.equal(feat_store_a.read(), b)

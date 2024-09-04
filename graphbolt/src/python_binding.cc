@@ -15,6 +15,7 @@
 #include "./cnumpy.h"
 #include "./expand_indptr.h"
 #include "./feature_cache.h"
+#include "./feature_cache_2.h"
 #include "./index_select.h"
 #include "./io_uring.h"
 #include "./partitioned_cache_policy.h"
@@ -175,6 +176,11 @@ TORCH_LIBRARY(graphbolt, m) {
       .def("replace", &storage::FeatureCache::Replace)
       .def("replace_async", &storage::FeatureCache::ReplaceAsync);
   m.def("feature_cache", &storage::FeatureCache::Create);
+  m.class_<storage::FeatureCache2>("FeatureCache2")
+      .def(torch::init<std::vector<int64_t>, torch::ScalarType>())
+      .def("query", &storage::FeatureCache2::Query)
+      .def("replace", &storage::FeatureCache2::Replace);
+  m.def("feature_cache_2", &storage::FeatureCache2::Create);
   m.def(
       "load_from_shared_memory", &FusedCSCSamplingGraph::LoadFromSharedMemory);
   m.def("unique_and_compact", &UniqueAndCompact);

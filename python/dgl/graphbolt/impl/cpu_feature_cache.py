@@ -1,4 +1,5 @@
 """CPU Feature Cache implementation wrapper for graphbolt."""
+
 import torch
 
 __all__ = ["CPUFeatureCache", "CPUFeatureCache2"]
@@ -204,7 +205,7 @@ class CPUFeatureCache2(object):
         pin_memory=False,
     ):
         print("----------- CPUFeatureCache2 is used -----------")
-        pass
+        self._cache = torch.ops.graphbolt.feature_cache_2(cache_shape, dtype)
 
     def is_pinned(self):
         """Returns True if the cache storage is pinned."""
@@ -235,7 +236,8 @@ class CPUFeatureCache2(object):
             pinned, then the returned values tensor is pinned as well. The
             missing_offsets tensor has the partition offsets of missing_keys.
         """
-        raise NotImplementedError
+        data, found_keys, missing_keys = self._cache.query(keys)
+        return data, found_keys, missing_keys
 
     def query_and_replace(self, keys, reader_fn, offset=0):
         """Queries the cache. Then inserts the keys that are not found by
