@@ -194,6 +194,15 @@ def test_CPUFeatureCache2_query():
     assert len(found_keys) == 0
     assert torch.equal(missing_keys, indices)
 
+    updated_keys, skipped_keys = cache.replace(indices, a)
+    assert torch.equal(updated_keys, indices)
+    assert len(skipped_keys) == 0
+
+    data, found_keys, missing_keys = cache.query(indices)
+    assert torch.equal(data, a)
+    assert torch.equal(found_keys, indices)
+    assert len(missing_keys) == 0
+
 
 def test_CPUFeatureCache2():
     a = torch.tensor([[1, 2, 3], [4, 5, 6]])
