@@ -278,7 +278,8 @@ class CPUFeatureCache2(object):
         offset : int
             The offset to be added to the keys. Default is 0.
         """
-        raise NotImplementedError
+        updated_keys, skipped_keys = self._cache.replace(keys, values)
+        return updated_keys, skipped_keys
 
     @property
     def miss_rate(self):

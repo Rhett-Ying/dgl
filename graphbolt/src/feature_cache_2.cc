@@ -13,31 +13,36 @@ FeatureCache2::FeatureCache2(
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> FeatureCache2::Query(
     torch::Tensor indices) {
   // data, found_keys, missing_keys.
-  auto positions = key_cache_.Query(indices);
-  if (positions.size() == 0) {
-    return std::make_tuple(torch::empty({0}), torch::empty({0}), indices);
+  // Retrieve the found keys and missing keys from key_cache_.
+  auto [found_keys, missing_keys] = key_cache_.Query(indices);
+
+  // read data from tensor_.
+  auto data =
+      torch::empty({found_keys.size(), tensor_.size(1)}, tensor_.options());
+  for (int64_t i = 0; i < found_keys.size(); i++) {
+    data[i] = tensor_[index_map_[found_keys[i]]];
   }
-  return std::make_tuple(
-      torch::empty({0}), torch::empty({0}), torch::empty({0}));
+
+  // return found_keys, missing_keys as tensor.
+  auto ret_found_keys = torch::tensor(found_keys);
+  auto ret_missing_keys = torch::tensor(missing_keys);
+  return std::make_tuple(data, ret_found_keys, ret_missing_keys);
 }
 
-torch::Tensor FeatureCache2::Replace(
+std::tuple<torch::Tensor, torch::Tensor> FeatureCache2::Replace(
     torch::Tensor indices, torch::Tensor values) {
   // Update the tensor with the new values. just iterate over the indices.
   // randomly pick a palce from index_map_ and update the tensor_ with the
   // values.
-  auto indices_ptr = indices.data_ptr<int64_t>();
-  auto values_ptr = values.data_ptr<float>();
-  for (int i = 0; i < indices.size(0); i++) {
-    int64_t position = key_cache_.Query(indices_ptr[i]);
-    if (position == -1) {
-      // already exists in the cache.
-      continue;
+  auto [updated_keys, skipped_keys] = key_cache_.Replace(indices);
+  for (int64_t i = 0; i < updated_keys.size(); i++) {
+    if (index_map_.find(updated_keys[i]) == index_map_.end()) {
+      index_map_[updated_keys[i]] = index_map_.size();
     }
-    // copy value to the tensor.
-    tensor_[position] = values_ptr[i];
+    tensor_[index_map_[updated_keys[i]]] = values[i];
   }
-  return torch::empty({0});
+  return std::make_tuple(
+      torch::tensor(updated_keys), torch::tensor(skipped_keys));
 }
 }  // namespace storage
 }  // namespace graphbolt
