@@ -185,8 +185,11 @@ def test_cpu_cached_disk_feature_read_async(dtype):
 
 
 def test_CPUFeatureCache2_query():
-    a = torch.tensor([[1, 2, 3], [4, 5, 6]])
-    cache = gb.CPUFeatureCache2(a.shape, a.dtype)
+    a = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])
+    # get half of the shape for dimension 0 while keeping the rest of the shape
+    cache_shape = list(a.shape)
+    cache_shape[0] = cache_shape[0] // 2
+    cache = gb.CPUFeatureCache2(cache_shape, a.dtype)
 
     indices = torch.tensor([0, 1])
     data, found_keys, missing_keys = cache.query(indices)
@@ -199,9 +202,15 @@ def test_CPUFeatureCache2_query():
     assert len(skipped_keys) == 0
 
     data, found_keys, missing_keys = cache.query(indices)
-    assert torch.equal(data, a)
+    assert torch.equal(data, a[indices])
     assert torch.equal(found_keys, indices)
     assert len(missing_keys) == 0
+
+    indices = torch.tensor([1, 2])
+    data, found_keys, missing_keys = cache.query(indices)
+    assert torch.equal(data, a[found_keys])
+    assert torch.equal(found_keys, torch.LongTensor([1]))
+    assert len(missing_keys) == 1
 
 
 def test_CPUFeatureCache2():
