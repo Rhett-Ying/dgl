@@ -10,11 +10,13 @@ FeatureCache2::FeatureCache2(
   index_map_.reserve(shape[0]);
 }
 
-std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> FeatureCache2::Query(
-    torch::Tensor indices) {
-  // data, found_keys, missing_keys.
+std::tuple<
+    torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+FeatureCache2::Query(torch::Tensor indices) {
   // Retrieve the found keys and missing keys from key_cache_.
-  auto [found_keys, positions, missing_keys] = key_cache_.Query(indices);
+  auto
+      [found_keys, positions, missing_keys, found_positions,
+       missing_positions] = key_cache_.Query(indices);
 
   // read data from tensor_.
   auto data =
@@ -26,7 +28,11 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> FeatureCache2::Query(
   // return found_keys, missing_keys as tensor.
   auto ret_found_keys = torch::tensor(found_keys);
   auto ret_missing_keys = torch::tensor(missing_keys);
-  return std::make_tuple(data, ret_found_keys, ret_missing_keys);
+  auto ret_found_positions = torch::tensor(found_positions);
+  auto ret_missing_positions = torch::tensor(missing_positions);
+  return std::make_tuple(
+      data, ret_found_keys, ret_missing_keys, ret_found_positions,
+      ret_missing_positions);
 }
 
 std::tuple<torch::Tensor, torch::Tensor> FeatureCache2::Replace(

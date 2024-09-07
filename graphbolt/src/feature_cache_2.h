@@ -28,7 +28,9 @@ class KeyCache {
     // TODO
     return 0;
   }
-  std::tuple<std::vector<int64_t>, std::vector<int64_t>, std::vector<int64_t>>
+  std::tuple<
+      std::vector<int64_t>, std::vector<int64_t>, std::vector<int64_t>,
+      std::vector<int64_t>, std::vector<int64_t>>
   Query(torch::Tensor keys) {
     // Iterate over the keys and check if the key is present in the cache.
     // return the keys that are found and not found.
@@ -36,15 +38,21 @@ class KeyCache {
     std::vector<int64_t> found_keys;
     std::vector<int64_t> positions;
     std::vector<int64_t> missing_keys;
+    std::vector<int64_t> found_positions;
+    std::vector<int64_t> missing_positions;
     for (int64_t i = 0; i < keys.size(0); i++) {
       if (keys_.find(keys_ptr[i]) != keys_.end()) {
         found_keys.push_back(keys_ptr[i]);
         positions.push_back(keys_[keys_ptr[i]]);
+        found_positions.push_back(i);
       } else {
         missing_keys.push_back(keys_ptr[i]);
+        missing_positions.push_back(i);
       }
     }
-    return std::make_tuple(found_keys, positions, missing_keys);
+    return std::make_tuple(
+        found_keys, positions, missing_keys, found_positions,
+        missing_positions);
   }
   std::unordered_map<int64_t, int64_t> Replace(torch::Tensor indices) {
     std::unordered_map<int64_t, int64_t> positions;
@@ -86,9 +94,10 @@ class FeatureCache2 : public torch::CustomClassHolder {
  public:
   FeatureCache2(const std::vector<int64_t>& shape, torch::ScalarType dtype);
 
-  // data, found_keys, missing_keys.
-  std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> Query(
-      torch::Tensor indices);
+  // data, found_keys, missing_keys, found_positions, missing_positions.
+  std::tuple<
+      torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+  Query(torch::Tensor indices);
 
   // updated_keys, skipped_keys.
   std::tuple<torch::Tensor, torch::Tensor> Replace(
