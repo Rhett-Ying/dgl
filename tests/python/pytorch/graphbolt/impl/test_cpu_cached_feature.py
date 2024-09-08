@@ -192,9 +192,13 @@ def test_CPUFeatureCache2_query():
     cache = gb.CPUFeatureCache2(cache_shape, a.dtype)
 
     indices = torch.tensor([0, 1])
-    data, found_keys, missing_keys, found_positions, missing_positions = (
-        cache.query(indices)
-    )
+    (
+        data,
+        found_keys,
+        missing_keys,
+        found_positions,
+        missing_positions,
+    ) = cache.query(indices)
     assert len(data) == 0
     assert len(found_keys) == 0
     assert torch.equal(missing_keys, indices)
@@ -205,9 +209,13 @@ def test_CPUFeatureCache2_query():
     assert torch.equal(updated_keys, indices)
     assert len(skipped_keys) == 0
 
-    data, found_keys, missing_keys, found_positions, missing_positions = (
-        cache.query(indices)
-    )
+    (
+        data,
+        found_keys,
+        missing_keys,
+        found_positions,
+        missing_positions,
+    ) = cache.query(indices)
     assert torch.equal(data, a[indices])
     assert torch.equal(found_keys, indices)
     assert len(missing_keys) == 0
@@ -215,9 +223,13 @@ def test_CPUFeatureCache2_query():
     assert len(missing_positions) == 0
 
     indices = torch.tensor([1, 2])
-    data, found_keys, missing_keys, found_positions, missing_positions = (
-        cache.query(indices)
-    )
+    (
+        data,
+        found_keys,
+        missing_keys,
+        found_positions,
+        missing_positions,
+    ) = cache.query(indices)
     assert torch.equal(data, a[found_keys])
     assert torch.equal(found_keys, torch.LongTensor([1]))
     assert len(missing_keys) == 1

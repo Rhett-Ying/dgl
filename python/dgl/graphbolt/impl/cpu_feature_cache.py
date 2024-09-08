@@ -238,9 +238,13 @@ class CPUFeatureCache2(object):
             pinned, then the returned values tensor is pinned as well. The
             missing_offsets tensor has the partition offsets of missing_keys.
         """
-        data, found_keys, missing_keys, found_positions, missing_positions = (
-            self._cache.query(keys)
-        )
+        (
+            data,
+            found_keys,
+            missing_keys,
+            found_positions,
+            missing_positions,
+        ) = self._cache.query(keys)
         return (
             data,
             found_keys,
@@ -271,9 +275,13 @@ class CPUFeatureCache2(object):
             A tensor containing values corresponding to the keys. Should equal
             `reader_fn(keys)`, computed in a faster way.
         """
-        data, found_keys, missing_keys, found_positions, missing_positions = (
-            self._cache.query(keys)
-        )
+        (
+            data,
+            found_keys,
+            missing_keys,
+            found_positions,
+            missing_positions,
+        ) = self._cache.query(keys)
         missing_data = reader_fn(missing_keys)
         # compose shape: keys.size(0), *self._data_shape
         return_data = torch.empty(
