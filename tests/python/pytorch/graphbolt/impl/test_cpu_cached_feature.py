@@ -185,23 +185,69 @@ def test_cpu_cached_disk_feature_read_async(dtype):
 
 
 def test_CPUFeatureCache2_query():
-    a = torch.tensor([[1, 2, 3], [4, 5, 6]])
-    cache = gb.CPUFeatureCache2(a.shape, a.dtype)
+    a = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])
+    # get half of the shape for dimension 0 while keeping the rest of the shape
+    cache_shape = list(a.shape)
+    cache_shape[0] = cache_shape[0] // 2
+    cache = gb.CPUFeatureCache2(cache_shape, a.dtype)
 
     indices = torch.tensor([0, 1])
-    data, found_keys, missing_keys = cache.query(indices)
+    (
+        data,
+        found_keys,
+        missing_keys,
+        found_positions,
+        missing_positions,
+    ) = cache.query(indices)
     assert len(data) == 0
     assert len(found_keys) == 0
     assert torch.equal(missing_keys, indices)
+    assert len(found_positions) == 0
+    assert torch.equal(missing_positions, torch.LongTensor([0, 1]))
 
     updated_keys, skipped_keys = cache.replace(indices, a)
     assert torch.equal(updated_keys, indices)
     assert len(skipped_keys) == 0
 
-    data, found_keys, missing_keys = cache.query(indices)
-    assert torch.equal(data, a)
+    (
+        data,
+        found_keys,
+        missing_keys,
+        found_positions,
+        missing_positions,
+    ) = cache.query(indices)
+    assert torch.equal(data, a[indices])
     assert torch.equal(found_keys, indices)
     assert len(missing_keys) == 0
+    assert torch.equal(found_positions, torch.LongTensor([0, 1]))
+    assert len(missing_positions) == 0
+
+    indices = torch.tensor([1, 2])
+    (
+        data,
+        found_keys,
+        missing_keys,
+        found_positions,
+        missing_positions,
+    ) = cache.query(indices)
+    assert torch.equal(data, a[found_keys])
+    assert torch.equal(found_keys, torch.LongTensor([1]))
+    assert len(missing_keys) == 1
+    assert torch.equal(missing_keys, torch.LongTensor([2]))
+    assert torch.equal(found_positions, torch.LongTensor([0]))
+    assert torch.equal(missing_positions, torch.LongTensor([1]))
+
+    data = cache.query_and_replace(indices, reader_fn=lambda x: a[x])
+    assert torch.equal(data, a[indices])
+
+    indices = torch.tensor([0, 1, 2, 3])
+    data = cache.query_and_replace(indices, reader_fn=lambda x: a[x])
+    assert torch.equal(data, a[indices])
+
+    # duplicate keys
+    indices = torch.tensor([0, 1, 2, 3, 0, 1, 2, 3])
+    data = cache.query_and_replace(indices, reader_fn=lambda x: a[x])
+    assert torch.equal(data, a[indices])
 
 
 def test_CPUFeatureCache2():
@@ -222,8 +268,6 @@ def test_CPUFeatureCache2():
     assert feat_store_a.size() == torch.Size([3])
     assert feat_store_a.count() == a.size(0)
 
-    return
-
     # Test update the entire feature.
     feat_store_a.update(torch.tensor([[0, 1, 2], [3, 5, 2]]))
     assert torch.equal(
@@ -239,5 +283,5 @@ def test_CPUFeatureCache2():
     )
 
     # Test with different dimensionality
-    feat_store_a.update(b)
-    assert torch.equal(feat_store_a.read(), b)
+    # feat_store_a.update(b)
+    # assert torch.equal(feat_store_a.read(), b)

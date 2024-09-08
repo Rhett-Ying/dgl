@@ -206,6 +206,8 @@ class CPUFeatureCache2(object):
     ):
         print("----------- CPUFeatureCache2 is used -----------")
         self._cache = torch.ops.graphbolt.feature_cache_2(cache_shape, dtype)
+        self._data_shape = cache_shape[1:]
+        self._data_type = dtype
 
     def is_pinned(self):
         """Returns True if the cache storage is pinned."""
@@ -236,8 +238,20 @@ class CPUFeatureCache2(object):
             pinned, then the returned values tensor is pinned as well. The
             missing_offsets tensor has the partition offsets of missing_keys.
         """
-        data, found_keys, missing_keys = self._cache.query(keys)
-        return data, found_keys, missing_keys
+        (
+            data,
+            found_keys,
+            missing_keys,
+            found_positions,
+            missing_positions,
+        ) = self._cache.query(keys)
+        return (
+            data,
+            found_keys,
+            missing_keys,
+            found_positions,
+            missing_positions,
+        )
 
     def query_and_replace(self, keys, reader_fn, offset=0):
         """Queries the cache. Then inserts the keys that are not found by
@@ -261,7 +275,23 @@ class CPUFeatureCache2(object):
             A tensor containing values corresponding to the keys. Should equal
             `reader_fn(keys)`, computed in a faster way.
         """
-        return reader_fn(keys)
+        (
+            data,
+            found_keys,
+            missing_keys,
+            found_positions,
+            missing_positions,
+        ) = self._cache.query(keys)
+        missing_data = reader_fn(missing_keys)
+        # compose shape: keys.size(0), *self._data_shape
+        return_data = torch.empty(
+            (keys.size(0), *self._data_shape), dtype=self._data_type
+        )
+        return_data[found_positions] = data
+        return_data[missing_positions] = missing_data
+        self._cache.replace(missing_keys, missing_data)
+
+        return return_data
 
     def replace(self, keys, values, offsets=None, offset=0):
         """Inserts key-value pairs into the cache using the selected caching

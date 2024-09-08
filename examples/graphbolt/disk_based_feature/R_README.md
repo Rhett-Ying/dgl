@@ -1,4 +1,23 @@
-# New Cache
+# Performance roadmap
+
+## Golden line
+
+Epoch 1: 12.58s
+Epoch 2: 4.10s
+
+## CPUFeatureCache2
+
+### Random Cache basesline: 24.09.08
+
+Epoch 1: 41.20s
+Epoch 2: 33.78s
+
+### basesline
+
+Epoch 1: 450.61s
+Epoch 2: 449.11s
+
+## New Cache
 
 ```
 DGL_HOME=/home/ubuntu/workspace/dgl_4 DGL_LIBRARY_PATH=$DGL_HOME/build PYTHONPATH=$DGL_HOME/python:$PYTHONPATH python node_classification.py --gpu-cache-size-in-gigabytes=0 --cpu-cache-size-in-gigabytes=10 --dataset=ogbn-arxiv --epochs=2 --cache-version=2 --mode=cpu-cpu-cuda
@@ -12,7 +31,7 @@ Training: 88it [07:29,  5.10s/it, num_nodes=81949, gpu_cache_miss=1, cpu_cache_m
 Evaluating: 30it [02:25,  4.85s/it, num_nodes=80155, gpu_cache_miss=1, cpu_cache_miss=0]    
 Epoch 01, Loss: 1.2522, Approx. Train: 0.6309, Approx. Val: 0.6704, Time: 449.1136426925659s
 
-# Old Cache
+## Old Cache
 
 ```
 DGL_HOME=/home/ubuntu/workspace/dgl_4 DGL_LIBRARY_PATH=$DGL_HOME/build PYTHONPATH=$DGL_HOME/python:$PYTHONPATH python node_classification.py --gpu-cache-size-in-gigabytes=0 --cpu-cache-size-in-gigabytes=10 --dataset=ogbn-arxiv --epochs=2 --cache-version=1 --mode=cpu-cpu-cuda
