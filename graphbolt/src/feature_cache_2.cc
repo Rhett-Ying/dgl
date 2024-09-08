@@ -38,11 +38,6 @@ FeatureCache2::Query(torch::Tensor indices) {
 std::tuple<torch::Tensor, torch::Tensor> FeatureCache2::Replace(
     torch::Tensor indices, torch::Tensor values) {
   auto positions = key_cache_.Replace(indices);
-  // print positions;
-  std::cout << "positions: " << std::endl;
-  for (auto const& x : positions) {
-    std::cout << x.first << ": " << x.second << std::endl;
-  }
   std::vector<int64_t> updated_keys;
   std::vector<int64_t> skipped_keys;
   auto indices_ptr = indices.data_ptr<int64_t>();
@@ -52,7 +47,6 @@ std::tuple<torch::Tensor, torch::Tensor> FeatureCache2::Replace(
       skipped_keys.push_back(indices_ptr[i]);
       continue;
     }
-    std::cout << "iter->second: " << iter->second << std::endl;
     tensor_[iter->second] = values[i];
     updated_keys.push_back(indices_ptr[i]);
   }

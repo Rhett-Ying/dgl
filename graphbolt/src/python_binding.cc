@@ -179,7 +179,8 @@ TORCH_LIBRARY(graphbolt, m) {
   m.class_<storage::FeatureCache2>("FeatureCache2")
       .def(torch::init<std::vector<int64_t>, torch::ScalarType>())
       .def("query", &storage::FeatureCache2::Query)
-      .def("replace", &storage::FeatureCache2::Replace);
+      .def("replace", &storage::FeatureCache2::Replace)
+      .def_property("nbytes", &storage::FeatureCache2::NumBytes);
   m.def("feature_cache_2", &storage::FeatureCache2::Create);
   m.def(
       "load_from_shared_memory", &FusedCSCSamplingGraph::LoadFromSharedMemory);

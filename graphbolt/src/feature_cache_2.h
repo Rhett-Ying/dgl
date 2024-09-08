@@ -71,10 +71,6 @@ class KeyCache {
           keys_[indices_ptr[i]] = pos;
           positions[indices_ptr[i]] = pos;
         }
-        // print keys_;
-        for (auto const& x : keys_) {
-          std::cout << x.first << ": " << x.second << std::endl;
-        }
       } else {
         // NO-OP
         ;
@@ -102,6 +98,8 @@ class FeatureCache2 : public torch::CustomClassHolder {
   // updated_keys, skipped_keys.
   std::tuple<torch::Tensor, torch::Tensor> Replace(
       torch::Tensor indices, torch::Tensor values);
+
+  int64_t NumBytes() const { return tensor_.numel() * tensor_.element_size(); }
 
   static c10::intrusive_ptr<FeatureCache2> Create(
       const std::vector<int64_t>& shape, torch::ScalarType dtype) {
