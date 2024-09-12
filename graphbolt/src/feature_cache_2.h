@@ -11,6 +11,17 @@
 namespace graphbolt {
 namespace storage {
 
+struct BaseCache {
+  using KeysT = std::vector<int64_t>;
+  using AddedPositionsT = std::unordered_map<int64_t, int64_t>;
+  using EvictedKeysT = std::unordered_set<int64_t>;
+  using ReplaceResultT = std::tuple<AddedPositionsT, EvictedKeysT>;
+  virtual void Query(const KeysT& keys) = 0;
+  virtual ReplaceResultT Replace(const KeysT& keys) = 0;
+  virtual int64_t Capacity() = 0;
+  virtual ~BaseCache() = default;
+};
+
 struct RandomIntGenerator {
   std::random_device rd;
   std::mt19937 gen;
@@ -19,19 +30,64 @@ struct RandomIntGenerator {
   int64_t operator()() { return dis(gen); }
 };
 
+struct RandomCache : public BaseCache {
+  RandomCache(int capacity) : capacity_(capacity), gen_(0, capacity - 1) {
+    data_.resize(capacity);
+  }
+  void Query(const KeysT& keys) override {
+    // As we randomly replace the keys, we don't need to do anything here.
+  }
+  ReplaceResultT Replace(const KeysT& keys) override {
+    AddedPositionsT added_positions;
+    EvictedKeysT evicted_keys;
+    for (const auto& key : keys) {
+      if (keys_.find(key) == keys_.end()) {
+        if (keys_.size() < capacity_) {
+          const int64_t pos = keys_.size();
+          data_[pos] = key;
+          keys_.insert({key, pos});
+          added_positions[key] = pos;
+        } else {
+          const int64_t pos = gen_();
+          evicted_keys.insert(data_[pos]);
+          keys_.erase(data_[pos]);
+          data_[pos] = key;
+          keys_[key] = pos;
+          added_positions[key] = pos;
+          if (evicted_keys.find(data_[pos]) != evicted_keys.end()) {
+            evicted_keys.erase(data_[pos]);
+          }
+          if (added_positions.find(data_[pos]) != added_positions.end()) {
+            added_positions.erase(data_[pos]);
+          }
+        }
+      } else {
+        // NO-OP
+        ;
+      }
+    }
+    return std::make_tuple(added_positions, evicted_keys);
+  }
+  int64_t Capacity() override { return capacity_; }
+  int capacity_;
+  std::vector<int64_t> data_;
+  std::unordered_map<int64_t, int64_t> keys_;
+  RandomIntGenerator gen_;
+};
+
+template <class CacheT>
 class KeyCache {
  public:
-  KeyCache(int capacity) : data_(capacity, 0), gen_(0, capacity - 1) {
-    capacity_ = capacity;
-  }
-  int64_t Query(int64_t key) {
-    // TODO
-    return 0;
+  KeyCache(int capacity) : cache_(capacity) {
+    keys_.reserve(capacity);
+    std::cout << "KeyCache::capacity:" << capacity << std::endl;
   }
   std::tuple<
       std::vector<int64_t>, std::vector<int64_t>, std::vector<int64_t>,
       std::vector<int64_t>, std::vector<int64_t>>
   Query(torch::Tensor keys) {
+    cache_.Query(std::vector<int64_t>(
+        keys.data_ptr<int64_t>(), keys.data_ptr<int64_t>() + keys.size(0)));
     // Iterate over the keys and check if the key is present in the cache.
     // return the keys that are found and not found.
     auto keys_ptr = keys.data_ptr<int64_t>();
@@ -55,35 +111,20 @@ class KeyCache {
         missing_positions);
   }
   std::unordered_map<int64_t, int64_t> Replace(torch::Tensor indices) {
-    std::unordered_map<int64_t, int64_t> positions;
-    auto indices_ptr = indices.data_ptr<int64_t>();
-    for (int64_t i = 0; i < indices.size(0); i++) {
-      if (keys_.find(indices_ptr[i]) == keys_.end()) {
-        if (keys_.size() < capacity_) {
-          data_[keys_.size()] = indices_ptr[i];
-          int64_t pos = keys_.size();
-          keys_.insert({indices_ptr[i], pos});
-          positions[indices_ptr[i]] = pos;
-        } else {
-          auto pos = gen_();
-          keys_.erase(data_[pos]);
-          data_[pos] = indices_ptr[i];
-          keys_[indices_ptr[i]] = pos;
-          positions[indices_ptr[i]] = pos;
-        }
-      } else {
-        // NO-OP
-        ;
-        // positions[indices_ptr[i]] = keys_[indices_ptr[i]];
-      }
+    auto&& [unique_indices, _x] = at::_unique(indices);
+    const auto& [positions, evicted_keys] = cache_.Replace(std::vector<int64_t>(
+        unique_indices.data_ptr<int64_t>(),
+        unique_indices.data_ptr<int64_t>() + unique_indices.size(0)));
+    for (const auto& key : evicted_keys) {
+      keys_.erase(key);
     }
-
+    for (const auto& [key, pos] : positions) {
+      keys_[key] = pos;
+    }
     return positions;
   }
-  int capacity_;
-  std::vector<int64_t> data_;
   std::unordered_map<int64_t, int64_t> keys_;
-  RandomIntGenerator gen_;
+  CacheT cache_;
 };
 
 class FeatureCache2 : public torch::CustomClassHolder {
@@ -108,8 +149,7 @@ class FeatureCache2 : public torch::CustomClassHolder {
 
  private:
   torch::Tensor tensor_;
-  KeyCache key_cache_;
-  std::unordered_map<int64_t, int64_t> index_map_;
+  KeyCache<RandomCache> key_cache_;
 };
 }  // namespace storage
 }  // namespace graphbolt
