@@ -7,7 +7,6 @@ FeatureCache2::FeatureCache2(
     const std::vector<int64_t>& shape, torch::ScalarType dtype)
     : key_cache_(shape[0]) {
   tensor_ = torch::empty(shape, torch::TensorOptions().dtype(dtype));
-  index_map_.reserve(shape[0]);
 }
 
 std::tuple<

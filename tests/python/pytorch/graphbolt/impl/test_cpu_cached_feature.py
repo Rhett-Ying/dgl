@@ -240,14 +240,35 @@ def test_CPUFeatureCache2_query():
     data = cache.query_and_replace(indices, reader_fn=lambda x: a[x])
     assert torch.equal(data, a[indices])
 
+    # For now, we're using Random Eviction Policy. So we can not make sure the
+    # cache is full and saved 1, 2.
+    """
+    (
+        data,
+        found_keys,
+        missing_keys,
+        found_positions,
+        missing_positions,
+    ) = cache.query(torch.tensor([1, 2]))
+    assert torch.equal(data, a[found_keys])
+    assert torch.equal(found_keys, indices)
+    assert len(missing_keys) == 0
+    assert torch.equal(found_positions, torch.LongTensor([0, 1]))
+    assert len(missing_positions) == 0
+    """
+
     indices = torch.tensor([0, 1, 2, 3])
     data = cache.query_and_replace(indices, reader_fn=lambda x: a[x])
     assert torch.equal(data, a[indices])
 
-    # duplicate keys
-    indices = torch.tensor([0, 1, 2, 3, 0, 1, 2, 3])
-    data = cache.query_and_replace(indices, reader_fn=lambda x: a[x])
-    assert torch.equal(data, a[indices])
+    # duplicate keys.
+    # Previously, we hit a bug that the evicted position generated from gen()
+    # could be duplicated. This test case is to make sure the bug is fixed.
+    # Run 100 times.
+    for _ in range(100):
+        indices = torch.tensor([0, 1, 2, 3, 0, 1, 2, 3])
+        data = cache.query_and_replace(indices, reader_fn=lambda x: a[x])
+        assert torch.equal(data, a[indices])
 
 
 def test_CPUFeatureCache2():

@@ -289,7 +289,7 @@ class CPUFeatureCache2(object):
         )
         return_data[found_positions] = data
         return_data[missing_positions] = missing_data
-        self._cache.replace(missing_keys, missing_data)
+        self.replace(missing_keys, missing_data)
 
         return return_data
 
